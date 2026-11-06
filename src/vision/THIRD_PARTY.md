@@ -1,0 +1,8 @@
+# Готовые компоненты и источники
+- Ultralytics YOLO11n + ByteTrack: https://docs.ultralytics.com/modes/track/ ; https://github.com/ultralytics/ultralytics . Лицензирование Ultralytics: AGPL-3.0 / Enterprise, https://www.ultralytics.com/license . Лицензия самого проекта пока не выбрана; это не делает зависимость свободной от её условий.
+- Детектор: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt . SHA256 фиксируется в models/provenance.json и отчёте запуска. Класс 0 соответствует person в COCO-модели; заменять произвольной моделью с другой таблицей классов нельзя.
+- OSNet: https://github.com/KaiyangZhou/deep-person-reid . Архитектура vendor/osnet.py взята из commit f8cd150fdf77e8d9e1ed143b7f308c2c609ded50. Удалены только хвостовые пробелы; логика не изменена. MIT и copyright сохранены в vendor/LICENSE.osnet.
+- Веса автора: https://huggingface.co/kaiyangzhou/osnet , revision a5c5cc037c24235cda3b21085b93ad77c9616224. Карточка модели помечена MIT. Выбран osnet_x0_25, обученный на MSMT17 (combineall), не случайная инициализация и не ImageNet-only checkpoint. SHA256 cf55163d78fc44c62c82f85ab62d39f10438679b5abe8c698ae08cfa84aa6e18; размер около 9.3 MB. Архитектура выдаёт 512 признаков. Этот публичный checkpoint не измерялся на офисных данных команды.
+- Препроцессинг: BGR -> RGB, resize 256x128, [0,1], mean [0.485,0.456,0.406], std [0.229,0.224,0.225]; L2-нормализация выхода.
+
+Собственная работа: декодирование и общая шкала времени, изоляция камер, фильтрация и выбор кропов, ограниченная агрегация признаков, экспорт и диагностика. Детектор, локальный трекер и архитектура ReID не выдаются за собственную разработку.
