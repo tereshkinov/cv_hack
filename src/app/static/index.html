@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CV Office — схема и камеры</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><a class="brand" href="/">CV<span>OFFICE</span></a><span class="badge">Локальный проект</span><div class="header-right"><span id="saveStatus" role="status">Загрузка…</span><button id="importBtn">Открыть JSON</button><button id="exportBtn">Скачать проект ↓</button><input id="importFile" type="file" accept="application/json" hidden></div></header>
+<main>
+<section class="intro"><div><div class="eyebrow">НАСТРОЙКА ПРОСТРАНСТВА</div><h1>Офис, камеры и общий план.</h1><p>Нарисуйте стены, установите камеры и свяжите четыре точки кадра с четырьмя точками пола.</p></div><div class="step-summary"><span>01 Схема</span><b>→</b><span>02 Камеры</span><b>→</b><span>03 Привязка</span></div></section>
+<div class="workspace">
+<aside class="sidebar panel">
+<div class="section-label">ПЛАН ОФИСА</div>
+<div class="dimensions"><label>Ширина, м<input id="roomWidth" type="number" min="1" max="1000" step="0.5" value="20"></label><label>Глубина, м<input id="roomHeight" type="number" min="1" max="1000" step="0.5" value="14"></label></div>
+<button id="resizeRoom" class="wide">Применить размеры</button><p class="hint">Начальные 20 × 14 м — условные размеры. Задайте размеры своего офиса.</p>
+<div class="section-label">ИНСТРУМЕНТЫ</div>
+<div class="tools"><button data-mode="select" class="active">↖ Выбрать / двигать</button><button data-mode="wall">╱ Прямая стена</button><button data-mode="camera">◉ Добавить камеру</button><button data-mode="calibrate">⊕ Точки на плане</button></div>
+<label class="check"><input id="snap" type="checkbox" checked> Сетка 0,25 м</label>
+<div class="button-row"><button id="undoWall">Отменить стену</button><button id="deleteSelected" class="danger">Удалить</button></div>
+<div class="section-label cameras-heading">КАМЕРЫ <span id="cameraCount">0</span></div><div id="cameraList" class="camera-list"></div><div id="emptyCameras" class="hint empty">Нажмите «Добавить камеру», затем укажите её положение на схеме.</div>
+</aside>
+<section class="plan-area panel"><div class="panel-top"><div><h2>Схема помещения</h2><span id="modeHint">Выберите инструмент слева</span></div><span id="cursorCoords">x — · y —</span></div><div class="plan-wrap"><canvas id="plan" width="1100" height="770" aria-label="Редактор плана офиса"></canvas></div><div class="plan-footer"><span><i class="legend-wall"></i>Стены</span><span><i class="legend-camera"></i>Камеры</span><span><i class="legend-point"></i>Опорные точки</span><span id="planSummary">Пустая схема</span></div></section>
+</div>
+<section id="cameraPanel" class="camera-panel panel" hidden>
+<div class="panel-top"><div><div class="eyebrow">НАСТРОЙКА ВЫБРАННОЙ КАМЕРЫ</div><h2 id="selectedTitle">Камера</h2></div><span id="calibrationBadge" class="pill">Не привязана</span></div>
+<div class="camera-settings"><label>Название<input id="cameraName" maxlength="100"></label><label>Высота, м<input id="cameraHeight" type="number" min="0.1" max="100" step="0.1"></label><label>Направление, °<input id="cameraYaw" type="number" min="-360" max="360" step="5"></label><label>Угол сектора, °<input id="cameraFov" type="number" min="1" max="179" step="5"></label><label>Дальность сектора, м<input id="cameraRange" type="number" min="0.1" max="1000" step="0.5"></label></div>
+<p class="hint sector-note">Сектор обзора здесь схематический. Высота и сектор не определяют привязку: координаты пола рассчитываются по четырём парам точек.</p>
+<div class="calibration-grid">
+<div class="video-area"><div class="video-controls"><label>Источник кадра<select id="videoSelect"><option value="">Выберите видео из data/raw</option></select></label><button id="uploadBtn">Загрузить видео</button><input id="videoFile" type="file" accept="video/*,.MOV,.mkv,.avi" hidden></div><div class="frame-controls"><label for="frameSlider">Кадр <span id="frameLabel">—</span></label><input id="frameSlider" type="range" min="0" max="0" value="0"><button id="loadFrame">Показать кадр</button></div><div class="frame-stage"><canvas id="frame" width="640" height="360" aria-label="Выбор точек на кадре"></canvas><div id="noFrame">Выберите видео и кадр,<br>где хорошо виден пол.</div></div><div class="frame-actions"><button id="pickMode" class="active">Разметить точки</button><button id="testMode">Проверить кликом</button><button id="undoVideo">Убрать точку кадра</button></div></div>
+<div class="calibration-info"><h3>Четыре точки. Одна плоскость.</h3><p>Отметьте четыре точки <strong>на полу в кадре</strong>, затем те же точки <strong>на схеме в том же порядке</strong>. Лучше выбрать углы плитки или другие заметные ориентиры по всей рабочей зоне.</p><div class="pair-table"><div class="pair-head"><span>№</span><span>Кадр · px</span><span>Схема · м</span></div><div id="pairs"></div></div><div class="button-row"><button id="resetPoints">Сбросить точки</button><button id="undoPlan">Убрать точку плана</button></div><button id="calibrateBtn" class="primary wide" disabled>Рассчитать привязку</button><div id="calibrationResult" class="result" aria-live="polite">Нужны 4 точки кадра и 4 точки плана.</div><p class="hint">Точки не должны лежать на одной прямой. Совпадение опорных точек не гарантирует точность всей сцены: проверяйте привязку на других точках пола.</p></div>
+</div></section>
+<footer>Координаты схемы в метрах: начало слева сверху, x вправо, y вниз. Проект сохраняется на этом компьютере.</footer>
+</main><div id="toast" role="status" aria-live="polite"></div><script src="/app.js"></script>
+</body></html>
