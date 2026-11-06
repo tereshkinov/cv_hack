@@ -5,12 +5,14 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from src.app.server import AppServer, default_project
+from src.app.server import AppServer, default_project, validate_project
 
 
 @pytest.fixture
 def app(tmp_path):
-    server = AppServer(("127.0.0.1", 0), tmp_path / "project.json")
+    server = AppServer(
+        ("127.0.0.1", 0), tmp_path / "project.json", run_root=tmp_path / "runs"
+    )
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield f"http://127.0.0.1:{server.server_port}", tmp_path / "project.json"
@@ -33,7 +35,7 @@ def test_save_reload_and_existing_video_catalog(app):
     base, path = app
     status, body = call(base + "/")
     assert status == 200 and b'<canvas id="plan"' in body
-    state = default_project()
+    state = validate_project(default_project())
     state["walls"] = [{"id": "wall1", "a": [1, 1], "b": [10, 1]}]
     assert call(base + "/api/project", state)[0] == 200
     assert json.loads(call(base + "/api/project")[1]) == state

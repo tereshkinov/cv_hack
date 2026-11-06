@@ -16,6 +16,8 @@ from urllib.parse import parse_qs, urlparse
 import cv2
 
 from .geometry import calibrate
+from .jobs import DEFAULT_OPTIONS, Jobs, validate_options
+from .project_runtime import camera_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
 STATIC = Path(__file__).parent / "static"
@@ -111,15 +113,29 @@ def validate_project(project):
         # Recompute, never trust an imported arbitrary transformation matrix.
         if camera.get("calibration") is not None:
             camera["calibration"] = calibrate(camera.get("video_points"), plans)
+    camera_ids = {c["id"] for c in cameras}
+    for camera in cameras:
+        offset = number(camera.get("time_offset_s", 0))
+        if not 0 <= offset <= 86400:
+            raise ValueError("Смещение камеры должно быть от 0 до 86400 секунд")
+        for key in ["overlap_with", "transition_to"]:
+            links = camera.get(key, [])
+            if not isinstance(links, list) or any(
+                not isinstance(v, str) or v not in camera_ids or v == camera["id"]
+                for v in links
+            ):
+                raise ValueError("Некорректная связь камер")
+    project["processing"] = validate_options(project.get("processing", {}))
     return project
 
 
 class AppServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address, project_path):
+    def __init__(self, address, project_path, run_root=None):
         self.project_path = project_path
         self.save_lock = Lock()
+        self.jobs = Jobs(ROOT, run_root)
         self.upload_dir = ROOT / "runs/app/uploads"
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         super().__init__(address, Handler)
@@ -141,11 +157,22 @@ class AppServer(ThreadingHTTPServer):
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
-        if args and "GET /api/frame" in str(args[0]):
+        if (
+            args
+            and ("GET /api/frame" in str(args[0]) or "GET /api/runs" in str(args[0]))
+            and len(args) > 1
+            and str(args[1]) == "200"
+        ):
             return
         super().log_message(fmt, *args)
 
-    def reply(self, status, data, content_type="application/json; charset=utf-8"):
+    def reply(
+        self,
+        status,
+        data,
+        content_type="application/json; charset=utf-8",
+        download_name=None,
+    ):
         body = (
             json.dumps(data, ensure_ascii=False, allow_nan=False).encode()
             if isinstance(data, (dict, list))
@@ -154,6 +181,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        if download_name:
+            self.send_header(
+                "Content-Disposition", f'attachment; filename="{download_name}"'
+            )
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
@@ -171,6 +202,63 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         route = urlparse(self.path)
         try:
+            if route.path == "/api/system":
+                return self.reply(
+                    200,
+                    {
+                        "models_ready": all(
+                            (ROOT / "models" / name).is_file()
+                            for name in ["yolo11n.pt", "osnet_x0_25_msmt17.pth"]
+                        ),
+                        "defaults": DEFAULT_OPTIONS,
+                    },
+                )
+            if route.path == "/api/runs":
+                return self.reply(200, self.server.jobs.list())
+            parts = route.path.strip("/").split("/")
+            if len(parts) >= 3 and parts[:2] == ["api", "runs"]:
+                folder = self.server.jobs.folder(parts[2])
+                if len(parts) == 3:
+                    result = self.server.jobs.status(folder)
+                    log = folder / "worker.log"
+                    if log.exists():
+                        with log.open("rb") as handle:
+                            handle.seek(0, 2)
+                            size = handle.tell()
+                            handle.seek(max(0, size - 16000))
+                            result["log"] = handle.read().decode(errors="replace")
+                    return self.reply(200, result)
+                if len(parts) == 4 and parts[3] == "review":
+                    if not (folder / "review.json").is_file():
+                        return self.reply(409, {"error": "Результат ещё не готов"})
+                    return self.reply(200, (folder / "review.json").read_bytes())
+                if (
+                    len(parts) == 5
+                    and parts[3] == "frame"
+                    and re.fullmatch(r"c[0-9]+_[0-9]{8}\.jpg", parts[4])
+                ):
+                    return self.reply(
+                        200, (folder / "frames" / parts[4]).read_bytes(), "image/jpeg"
+                    )
+                exports = {
+                    "tracks.csv": "tracks.csv",
+                    "positions.csv": "positions.csv",
+                    "tracks.json": "association/tracks.json",
+                    "assignments.jsonl": "association/assignments.jsonl",
+                    "observations.jsonl": "vision/observations.jsonl",
+                    "project.json": "project.json",
+                    "report.md": "report.md",
+                    "performance.json": "performance.json",
+                    "reconciliation.json": "association/reconciliation.json",
+                }
+                if len(parts) == 5 and parts[3] == "export" and parts[4] in exports:
+                    return self.reply(
+                        200,
+                        (folder / exports[parts[4]]).read_bytes(),
+                        "application/octet-stream",
+                        parts[4],
+                    )
+                return self.reply(404, {"error": "Не найдено"})
             if route.path == "/api/project":
                 path = self.server.project_path
                 data = (
@@ -221,6 +309,9 @@ class Handler(BaseHTTPRequestHandler):
                 "/": "index.html",
                 "/app.js": "app.js",
                 "/style.css": "style.css",
+                "/review": "review.html",
+                "/review.js": "review.js",
+                "/review.css": "review.css",
             }
             filename = allowed.get(route.path)
             if filename:
@@ -237,6 +328,36 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         route = urlparse(self.path)
         try:
+            if route.path in {"/api/runs", "/api/prepare"}:
+                body = self.json_body()
+                project = validate_project(body.get("project", default_project()))
+                options = validate_options(
+                    body.get("options", project.get("processing", {}))
+                )
+                cameras = (
+                    camera_manifest(project, self.server.videos(), ROOT)
+                    if route.path == "/api/runs"
+                    else []
+                )
+                if route.path == "/api/runs" and not all(
+                    (ROOT / "models" / name).is_file()
+                    for name in ["yolo11n.pt", "osnet_x0_25_msmt17.pth"]
+                ):
+                    raise ValueError("Сначала нажмите «Подготовить модели»")
+                result = self.server.jobs.start(
+                    project,
+                    cameras,
+                    options,
+                    "pipeline" if route.path == "/api/runs" else "prepare",
+                )
+                return self.reply(202, result)
+            parts = route.path.strip("/").split("/")
+            if (
+                len(parts) == 4
+                and parts[:2] == ["api", "runs"]
+                and parts[3] == "cancel"
+            ):
+                return self.reply(200, self.server.jobs.cancel(parts[2]))
             if route.path == "/api/calibrate":
                 body = self.json_body()
                 return self.reply(
@@ -292,8 +413,11 @@ def main():
         "--project", type=Path, default=ROOT / "configs/office.local.json"
     )
     parser.add_argument("--open", action="store_true")
+    parser.add_argument(
+        "--runs", type=Path, help="Optional isolated run directory for testing"
+    )
     args = parser.parse_args()
-    server = AppServer(("127.0.0.1", args.port), args.project)
+    server = AppServer(("127.0.0.1", args.port), args.project, args.runs)
     url = f"http://127.0.0.1:{server.server_port}"
     print(f"Office editor: {url}\nProject: {args.project}", flush=True)
     if args.open:
@@ -303,4 +427,6 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        for run_id in list(server.jobs.processes):
+            server.jobs.cancel(run_id)
         server.server_close()

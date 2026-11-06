@@ -9,13 +9,23 @@ from pathlib import Path
 import platform
 import resource
 import time
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
 import cv2
 import numpy as np
 
 from .embeddings import ColorHistogram, OSNet, normalized, sha256
 from .preview import PreviewOverlay
+
+
+def package_versions():
+    result = {}
+    for package in ['ultralytics', 'torch', 'opencv-python', 'opencv-python-headless', 'numpy']:
+        try:
+            result[package] = version(package)
+        except PackageNotFoundError:
+            result[package] = None
+    return result
 
 
 @dataclass
@@ -155,7 +165,7 @@ def run(cameras_path: Path, output: Path, root: Path, options: Options,
                   'platform': platform.platform(), 'embedding_model_id': getattr(encoder, 'model_id', None),
                   'embedding_dimension': getattr(encoder, 'dimension', None),
                   'embedding_normalization': 'L2' if encoder else None,
-                  'packages': {p: version(p) for p in ['ultralytics', 'torch', 'opencv-python', 'numpy']}}
+                  'packages': package_versions()}
         weights_path = Path(options.detector)
         if not weights_path.is_absolute():
             weights_path = root / weights_path

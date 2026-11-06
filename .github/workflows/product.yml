@@ -1,0 +1,14 @@
+name: Product baseline
+on: [push, pull_request]
+jobs:
+  unit-and-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install numpy==2.5.4 opencv-python-headless==5.0.0.93 pytest==9.2.0
+      - run: python -m pytest src/app/tests src/vision/tests src/association/tests -q
+      - run: python scripts/check_examples.py
+      - run: node --check src/app/static/app.js && node --check src/app/static/review.js

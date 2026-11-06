@@ -28,4 +28,4 @@ assert len(assignments) == len(observations)
 for t in tracks['tracks']:
     assert t['start_s'] <= t['last_seen_s'] == t['end_s']
     assert set(t['camera_ids']) <= cam_ids
-print('OK: synthetic contract examples are consistent; tracking is not implemented.')
+print('OK: synthetic contract examples are consistent; this check does not evaluate tracking accuracy.')
