@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "cameras": [
+    {"camera_id": "cam01", "video_path": "data/raw/cam01/video.mp4", "time_offset_s": 0, "overlap_with": [], "transition_to": []},
+    {"camera_id": "cam02", "video_path": "data/raw/cam02/video.mp4", "time_offset_s": 0, "overlap_with": [], "transition_to": []}
+  ]
+}

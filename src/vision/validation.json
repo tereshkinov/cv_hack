@@ -1,0 +1,35 @@
+{
+  "input_kind": "synthetic_video_replaying_public_still_with_blank_frames",
+  "not_mtmc_accuracy_evaluation": true,
+  "frames_per_source": 15,
+  "sources": 2,
+  "resolution": [
+    640,
+    640
+  ],
+  "source_fps": 5,
+  "observations": 104,
+  "embedding_rows": 40,
+  "dimension": 512,
+  "local_tracks": 8,
+  "repeated_outputs_byte_identical": true,
+  "run_wall_times_s": [
+    6.998545500013279,
+    3.0208837910031434
+  ],
+  "processed_fps": [
+    4.286604980983989,
+    9.930868605189845
+  ],
+  "peak_rss_mb": [
+    501.203125,
+    500.515625
+  ],
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "packages": {
+    "ultralytics": "8.4.203",
+    "torch": "2.15.0",
+    "opencv-python": "5.0.0.93",
+    "numpy": "2.5.4"
+  }
+}
