@@ -188,8 +188,22 @@ class AssociationConfig:
     min_embedding_confidence: float = 0.50
     gallery_size: int = 5
     allow_topology_only_baseline: bool = False
+    offline_reconcile: bool = True
+    tracklet_threshold: float | None = None
+    tracklet_min_samples: int = 3
 
     def __post_init__(self) -> None:
+        if (
+            self.tracklet_threshold is not None
+            and not -1 <= self.tracklet_threshold <= 1
+        ):
+            raise ValueError("tracklet_threshold must be in [-1, 1]")
+        if (
+            isinstance(self.tracklet_min_samples, bool)
+            or not isinstance(self.tracklet_min_samples, int)
+            or self.tracklet_min_samples < 2
+        ):
+            raise ValueError("tracklet_min_samples must be an integer >= 2")
         if not isfinite(self.timeout_s) or self.timeout_s < 0:
             raise ValueError("timeout_s must be finite and non-negative")
         if not -1.0 <= self.similarity_threshold <= 1.0:

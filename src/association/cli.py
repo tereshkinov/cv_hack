@@ -25,6 +25,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-embedding-confidence", type=float, default=0.50)
     parser.add_argument("--gallery-size", type=int, default=5)
     parser.add_argument("--allow-topology-only-baseline", action="store_true")
+    parser.add_argument("--no-offline-reconcile", action="store_true")
+    parser.add_argument("--tracklet-threshold", type=float, default=None)
+    parser.add_argument("--tracklet-min-samples", type=int, default=3)
     return parser
 
 
@@ -37,12 +40,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         min_embedding_confidence=args.min_embedding_confidence,
         gallery_size=args.gallery_size,
         allow_topology_only_baseline=args.allow_topology_only_baseline,
+        offline_reconcile=not args.no_offline_reconcile,
+        tracklet_threshold=args.tracklet_threshold,
+        tracklet_min_samples=args.tracklet_min_samples,
     )
     cameras = load_cameras(args.cameras)
     observations = load_observations(args.observations)
     exits = load_exit_events(args.exits) if args.exits else []
-    assignments, tracks = AssociationEngine(cameras, config).run(observations, exits)
+    engine = AssociationEngine(cameras, config)
+    assignments, tracks = engine.run(observations, exits)
     write_results(args.output_dir, assignments, tracks)
+    (args.output_dir / "reconciliation.json").write_text(
+        json.dumps(
+            {
+                "offline_reconcile": config.offline_reconcile,
+                "tracklet_threshold": config.tracklet_threshold
+                if config.tracklet_threshold is not None
+                else config.similarity_threshold,
+                "merges": engine.reconciliation_log,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
     print(
         json.dumps(
             {

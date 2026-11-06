@@ -27,6 +27,7 @@ class AssociationEngine:
         self._local_to_global: dict[tuple[str, str], str] = {}
         self._assignments: list[dict[str, object]] = []
         self._next_id = 1
+        self.reconciliation_log: list[dict] = []
 
     def run(
         self,
@@ -36,6 +37,8 @@ class AssociationEngine:
         if self._assignments or self._tracks:
             raise RuntimeError("AssociationEngine instances are single-use")
 
+        observations = list(observations)
+        exit_events = list(exit_events)
         grouped_observations: dict[float, list[Observation]] = defaultdict(list)
         grouped_exits: dict[float, list[ExitEvent]] = defaultdict(list)
         references: set[tuple[str, int, str]] = set()
@@ -69,6 +72,12 @@ class AssociationEngine:
             self._export_track(self._tracks[track_id])
             for track_id in sorted(self._tracks)
         ]
+        if self.config.offline_reconcile:
+            from .reconcile import reconcile
+
+            assignments, tracks, self.reconciliation_log = reconcile(
+                self, observations, assignments, tracks, exit_events
+            )
         return assignments, tracks
 
     def _validate_camera_links(self) -> None:
