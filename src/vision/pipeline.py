@@ -15,6 +15,7 @@ import cv2
 import numpy as np
 
 from .embeddings import ColorHistogram, OSNet, normalized, sha256
+from .preview import PreviewOverlay
 
 
 @dataclass
@@ -173,6 +174,7 @@ def process_camera(camera, root, output, options, detector, encoder, stream):
         video = root / video
     cap = cv2.VideoCapture(str(video))
     writer = None
+    overlay = PreviewOverlay()
     local = {}
     count = processed = decoded = 0
     start = time.perf_counter()
@@ -250,12 +252,10 @@ def process_camera(camera, root, output, options, detector, encoder, stream):
                 stream.write(json.dumps(obs, allow_nan=False) + '\n')
                 count += 1
             if writer:
-                for identity, box, _ in records:
-                    x1, y1, x2, y2 = map(int, box)
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 220, 0), 2)
-                    cv2.putText(frame, f"{camera['camera_id']}:{identity}", (x1, max(20, y1 - 5)),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 220, 0), 2)
+                overlay.draw(frame, records, camera['camera_id'], frame_index, timestamp)
                 writer.write(frame)
+            if processed % 100 == 0:
+                print(f"{camera['camera_id']}: frame {frame_index}, video {timestamp:.1f}s, {count} observations", flush=True)
         if decoded == 0:
             raise ValueError(f'Video has no decodable frames: {video}')
         tracklets = []

@@ -67,10 +67,25 @@ def main(argv=None):
     process.add_argument('--max-frames', type=int)
     process.add_argument('--preview', action='store_true', help='Write diagnostic videos with LOCAL IDs')
     process.add_argument('--threads', type=int, default=4)
+    debug = sub.add_parser('debug', help='Track one video and produce a watchable annotated MP4')
+    debug.add_argument('video', type=Path, nargs='?')
+    debug.add_argument('--choose', action='store_true', help='macOS file selection dialog')
+    debug.add_argument('--output', type=Path)
+    debug.add_argument('--open', dest='open_result', action='store_true', help='Open video player after processing')
+    debug.add_argument('--device', default='cpu')
+    debug.add_argument('--max-frames', type=int)
+    debug.add_argument('--embedding', choices=['none', 'osnet', 'color'], default='none')
     args = parser.parse_args(argv)
     try:
         if args.command == 'prepare':
             prepare(ROOT)
+        elif args.command == 'debug':
+            import torch
+            from .debug import debug_video
+            torch.set_num_threads(4)
+            torch.manual_seed(0)
+            debug_video(ROOT, args.video, args.output, args.device, args.max_frames,
+                        args.open_result, args.choose, args.embedding)
         elif args.command == 'inspect':
             import cv2
             for path in args.videos:
