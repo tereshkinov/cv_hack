@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "tracks": [
+    {
+      "global_track_id": "g1",
+      "start_s": 1.0,
+      "last_seen_s": 1.0,
+      "end_s": 1.0,
+      "status": "closed",
+      "camera_ids": [
+        "cam01",
+        "cam02"
+      ],
+      "close_reason": "end_of_video"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "track_timeout_s": 10,
+  "cameras_file": "examples/cameras.json",
+  "observations_file": "examples/observations.jsonl",
+  "output_dir": "runs/demo",
+  "note": "Технический шаблон; команды обработки ещё не реализованы."
+}

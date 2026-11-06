@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "cameras": [
+    {
+      "camera_id": "cam01",
+      "video_path": "data/raw/cam01.mp4",
+      "width": 1280,
+      "height": 720,
+      "fps": 25,
+      "time_offset_s": 0,
+      "overlap_with": [
+        "cam02"
+      ],
+      "transition_to": [
+        "cam02"
+      ]
+    },
+    {
+      "camera_id": "cam02",
+      "video_path": "data/raw/cam02.mp4",
+      "width": 1280,
+      "height": 720,
+      "fps": 25,
+      "time_offset_s": 0,
+      "overlap_with": [
+        "cam01"
+      ],
+      "transition_to": [
+        "cam01"
+      ]
+    }
+  ]
+}
