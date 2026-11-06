@@ -1,0 +1,7 @@
+# Direct runtime dependencies. Full tested macOS/Python 3.13 environment: requirements-lock.txt.
+ultralytics==8.4.203
+opencv-python==5.0.0.93
+lap==0.5.14
+torch==2.15.0
+numpy==2.5.4
+requests==2.34.2

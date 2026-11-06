@@ -15,3 +15,7 @@ runs/
 *.pt
 *.pth
 *.onnx
+
+# Agent 1 local settings
+configs/cameras.local.json
+.pytest_cache/
