@@ -45,6 +45,42 @@ def execute(folder):
             prepare(ROOT)
             update(folder, "done", "Модели готовы", "complete")
             return
+        if spec["kind"] in {"projection", "reassociate"}:
+            from .review_data import reassociate_cached, rebuild_projection
+
+            project = json.loads((folder / "project.json").read_text())
+            cameras = json.loads((folder / "cameras.json").read_text())["cameras"]
+            source = folder.parent / spec["source_run_id"]
+            progress(
+                "projection",
+                "Проецируем готовые треки: нейросети и видео повторно не запускаются",
+            )
+            rebuild = (
+                reassociate_cached
+                if spec["kind"] == "reassociate"
+                else rebuild_projection
+            )
+            result = rebuild(
+                source, folder, project, cameras, spec["options"], progress
+            )
+            elapsed = time.perf_counter() - started
+            (folder / "performance.json").write_text(
+                json.dumps(
+                    {"projection_wall_time_s": elapsed, "source_run_id": source.name}
+                )
+            )
+            (folder / "report.md").write_text(
+                f"# Проекция готовых треков\nИсточник: {source.name}.\nНейросети не запускались. Режим: {spec['kind']}. Треков: {len(result['tracks'])}. Калибровано камер: {sum(c['calibrated'] for c in result['cameras'])}. Единицы: {result['coordinate_units']}.\n"
+            )
+            update(
+                folder,
+                "done",
+                f"Готово: {len(result['tracks'])} треков; ID пересчитаны по полу"
+                if spec["kind"] == "reassociate"
+                else "Проекция готова: ID сохранены, путь обновлён",
+                "complete",
+            )
+            return
         import torch
 
         from src.association.cli import main as associate
@@ -66,6 +102,8 @@ def execute(folder):
                 device=settings["device"],
                 frame_stride=settings["frame_stride"],
                 confidence=settings["confidence"],
+                max_duration_s=settings.get("max_duration_s", 0),
+                local_buffer_s=settings.get("local_buffer_s", 5),
                 embedding="osnet",
             ),
         )
@@ -78,10 +116,16 @@ def execute(folder):
                 str(folder / "vision/observations.jsonl"),
                 "--output-dir",
                 str(folder / "association"),
+                "--project",
+                str(folder / "project.json"),
                 "--timeout-s",
                 str(settings["timeout_s"]),
                 "--similarity-threshold",
                 str(settings["similarity_threshold"]),
+                "--adjacency-bonus",
+                str(settings.get("adjacency_bonus", 0.04)),
+                "--ambiguity-margin",
+                str(settings.get("ambiguity_margin", 0.03)),
                 "--tracklet-threshold",
                 str(settings["tracklet_threshold"]),
             ]
@@ -93,6 +137,7 @@ def execute(folder):
 {message}
 
 Время: {time.perf_counter() - started:.2f} с. Камер: {len(cameras)}.
+Лимит на каждую камеру: {settings.get("max_duration_s", 0)} с (0 — всё видео). Локальное ожидание: {settings.get("local_buffer_s", 5)} с. Бонус графа: {settings.get("adjacency_bonus", 0.04)}.
 Анализ: YOLO11n + ByteTrack + OSNet, собственное межкамерное сопоставление и офлайн-уточнение.
 Порог первого прохода {settings["similarity_threshold"]}; нескольких кадров {settings["tracklet_threshold"]}; ожидание {settings["timeout_s"]} с.
 Калиброваны {sum(c["calibrated"] for c in result["cameras"])} камер. Отброшено проекций: {result["projection_rejected"]}.

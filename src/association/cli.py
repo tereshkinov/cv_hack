@@ -19,6 +19,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--observations", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--exits", type=Path)
+    parser.add_argument("--project", type=Path, help="Floor calibration project for soft spatial evidence")
+    parser.add_argument("--no-geolocation", action="store_true")
     parser.add_argument("--timeout-s", type=float, default=10.0)
     parser.add_argument("--similarity-threshold", type=float, default=0.75)
     parser.add_argument("--ambiguity-margin", type=float, default=0.05)
@@ -27,6 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-topology-only-baseline", action="store_true")
     parser.add_argument("--no-offline-reconcile", action="store_true")
     parser.add_argument("--tracklet-threshold", type=float, default=None)
+    parser.add_argument("--adjacency-bonus", type=float, default=0.04)
     parser.add_argument("--tracklet-min-samples", type=int, default=3)
     return parser
 
@@ -35,6 +38,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = AssociationConfig(
         timeout_s=args.timeout_s,
+        adjacency_bonus=args.adjacency_bonus,
         similarity_threshold=args.similarity_threshold,
         ambiguity_margin=args.ambiguity_margin,
         min_embedding_confidence=args.min_embedding_confidence,
@@ -47,7 +51,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     cameras = load_cameras(args.cameras)
     observations = load_observations(args.observations)
     exits = load_exit_events(args.exits) if args.exits else []
-    engine = AssociationEngine(cameras, config)
+    floor_project = json.loads(args.project.read_text()) if args.project and not args.no_geolocation else None
+    engine = AssociationEngine(cameras, config, floor_project=floor_project)
     assignments, tracks = engine.run(observations, exits)
     write_results(args.output_dir, assignments, tracks)
     (args.output_dir / "reconciliation.json").write_text(
@@ -58,6 +63,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if config.tracklet_threshold is not None
                 else config.similarity_threshold,
                 "merges": engine.reconciliation_log,
+                "geolocation": {
+                    "enabled": engine.floor is not None,
+                    "calibrated_cameras": sorted(engine.floor.calibrations) if engine.floor else [],
+                    "statistics": dict(engine.floor.stats) if engine.floor else {},
+                },
             },
             indent=2,
         )

@@ -1,0 +1,73 @@
+{
+  "run_id": "20261106-202306-cf5a526b",
+  "status": "complete",
+  "tests_passed": 57,
+  "limit_per_camera_s": 180,
+  "global_timeline_s": 184.0,
+  "options": {
+    "device": "cpu",
+    "confidence": 0.1,
+    "frame_stride": 5,
+    "timeout_s": 15,
+    "max_duration_s": 180,
+    "local_buffer_s": 5,
+    "adjacency_bonus": 0.04,
+    "ambiguity_margin": 0.03,
+    "similarity_threshold": 0.72,
+    "tracklet_threshold": 0.62,
+    "preview_fps": 5,
+    "fusion_distance_m": 2,
+    "smoothing_tau_s": 0.25
+  },
+  "observations": 2272,
+  "local_tracks": 79,
+  "global_tracks": 64,
+  "assignment_reasons": {
+    "new_track": 64,
+    "local_track_continuity": 1464,
+    "offline_multiframe_reid": 739,
+    "transition_reid": 1,
+    "same_camera_reid": 2,
+    "overlap_reid": 2
+  },
+  "wall_time_s": 284.9699495419918,
+  "cameras": [
+    {
+      "camera_id": "cam01",
+      "fps": 25.0,
+      "duration_s": 180.0
+    },
+    {
+      "camera_id": "cam02",
+      "fps": 25.0,
+      "duration_s": 180.0
+    },
+    {
+      "camera_id": "cam03",
+      "fps": 25.0,
+      "duration_s": 180.0
+    },
+    {
+      "camera_id": "cam04",
+      "fps": 20.0,
+      "duration_s": 180.0
+    },
+    {
+      "camera_id": "cam05",
+      "fps": 25.0,
+      "duration_s": 180.0
+    }
+  ],
+  "checks": {
+    "analysis_and_preview_limit": true,
+    "no_duplicate_global_id_per_camera_frame": true,
+    "no_global_gap_exceeding_timeout": true,
+    "fresh_association_replay_byte_identical": true
+  },
+  "comparison": {
+    "old_run": "20261106-193049-094d9c99",
+    "old_global_ids_visible_in_first_180s": 76,
+    "new_global_tracks": 64,
+    "caveat": "Old IDs come from the full-recording result restricted to the first 180 seconds per camera. Fewer IDs do not establish higher accuracy; no manual identity ground truth is available."
+  }
+}

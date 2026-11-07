@@ -23,3 +23,6 @@ configs/cameras.local.json
 # Local office configuration
 configs/office.local.json
 configs/office.local.tmp
+
+# Saved local office presets
+configs/presets/*.local.json

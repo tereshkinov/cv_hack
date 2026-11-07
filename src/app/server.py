@@ -6,7 +6,6 @@ import json
 import math
 import mimetypes
 import re
-import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,6 +16,7 @@ import cv2
 
 from .geometry import calibrate
 from .jobs import DEFAULT_OPTIONS, Jobs, validate_options
+from .plan_assets import describe, plans
 from .project_runtime import camera_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +27,7 @@ VIDEO_SUFFIXES = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}
 def default_project():
     return {
         "schema_version": 1,
+        "coordinate_units": "meters",
         "room": {"width_m": 20, "height_m": 14},
         "walls": [],
         "cameras": [],
@@ -46,6 +47,17 @@ def validate_project(project):
             raise ValueError("Координаты и размеры должны быть конечными числами")
         return x
 
+    units = project.get("coordinate_units", "meters")
+    if units not in {"meters", "relative"}:
+        raise ValueError("Единицы схемы: meters или relative")
+    background = project.get("plan_background")
+    if background is not None:
+        if not isinstance(background, dict) or not re.fullmatch(
+            r"[a-f0-9]{20}", str(background.get("image_id", ""))
+        ):
+            raise ValueError("Некорректное изображение плана")
+        if not 0 <= number(background.get("opacity", 0.8)) <= 1:
+            raise ValueError("Прозрачность плана: от 0 до 1")
     room = project.get("room", {})
     width, height = number(room.get("width_m")), number(room.get("height_m"))
     if not (1 <= width <= 1000 and 1 <= height <= 1000):
@@ -265,6 +277,21 @@ class Handler(BaseHTTPRequestHandler):
                     json.loads(path.read_text()) if path.exists() else default_project()
                 )
                 return self.reply(200, data)
+            if route.path == "/api/plans":
+                return self.reply(
+                    200,
+                    [describe(ROOT, key, path) for key, path in plans(ROOT).items()],
+                )
+            if route.path == "/api/plan-image":
+                key = parse_qs(route.query).get("id", [""])[0]
+                path = plans(ROOT).get(key)
+                if path is None:
+                    return self.reply(404, {"error": "Изображение плана не найдено"})
+                return self.reply(
+                    200,
+                    path.read_bytes(),
+                    mimetypes.guess_type(path.name)[0] or "image/png",
+                )
             if route.path == "/api/videos":
                 return self.reply(
                     200,
@@ -328,6 +355,49 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         route = urlparse(self.path)
         try:
+            if route.path == "/api/plan-upload":
+                import uuid
+
+                import numpy as np
+
+                size = int(self.headers.get("Content-Length", "0"))
+                if not 0 < size <= 20 * 1024 * 1024:
+                    raise ValueError("Размер изображения: до 20 МБ")
+                raw = self.rfile.read(size)
+                image = cv2.imdecode(
+                    np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR
+                )
+                if image is None or image.shape[0] * image.shape[1] > 40_000_000:
+                    raise ValueError(
+                        "Нужен PNG, JPEG или WebP размером до 40 мегапикселей"
+                    )
+                directory = ROOT / "runs/app/plan-uploads"
+                directory.mkdir(parents=True, exist_ok=True)
+                path = directory / (uuid.uuid4().hex + ".png")
+                if not cv2.imwrite(str(path), image):
+                    raise ValueError("Не удалось сохранить изображение")
+                key = hashlib.sha256(str(path.relative_to(ROOT)).encode()).hexdigest()[
+                    :20
+                ]
+                return self.reply(200, describe(ROOT, key, path))
+            parts = route.path.strip("/").split("/")
+            if (
+                len(parts) == 4
+                and parts[:2] == ["api", "runs"]
+                and parts[3] in {"project", "reassociate"}
+            ):
+                project = validate_project(self.json_body()["project"])
+                cameras = camera_manifest(project, self.server.videos(), ROOT)
+                if not any(c.get("calibration") for c in project["cameras"]):
+                    raise ValueError("Сначала привяжите к полу хотя бы одну камеру")
+                result = self.server.jobs.start(
+                    project,
+                    cameras,
+                    project["processing"],
+                    "projection" if parts[3] == "project" else "reassociate",
+                    source_run_id=parts[2],
+                )
+                return self.reply(202, result)
             if route.path in {"/api/runs", "/api/prepare"}:
                 body = self.json_body()
                 project = validate_project(body.get("project", default_project()))

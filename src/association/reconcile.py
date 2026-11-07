@@ -3,6 +3,8 @@
 from collections import defaultdict
 from statistics import fmean, median
 
+from .topology import plausible_recovery
+
 
 def reconcile(engine, observations, assignments, tracks, exits):
     from .engine import _cosine_similarity
@@ -57,11 +59,24 @@ def reconcile(engine, observations, assignments, tracks, exits):
         return distinct
 
     def score_groups(left, right):
-        # Independent local IDs on the same camera must not be merged by this pass.
         lcam = {o.camera_id for o in left}
         rcam = {o.camera_id for o in right}
-        if lcam & rcam:
-            return None
+        # A merge must never put two independently visible local tracks on one camera.
+        for common in lcam & rcam:
+            la = defaultdict(list)
+            rb = defaultdict(list)
+            for o in left:
+                if o.camera_id == common:
+                    la[o.local_track_id].append(o.timestamp_s)
+            for o in right:
+                if o.camera_id == common:
+                    rb[o.local_track_id].append(o.timestamp_s)
+            if any(
+                max(min(a), min(b)) <= min(max(a), max(b))
+                for a in la.values()
+                for b in rb.values()
+            ):
+                return None
         scores = []
         for ca in sorted(lcam):
             a = [o for o in left if o.camera_id == ca]
@@ -72,12 +87,22 @@ def reconcile(engine, observations, assignments, tracks, exits):
                 gap = max(0.0, ast - bend, bst - aend)
                 if gap > config.timeout_s:
                     continue
-                permitted = (
-                    cb in engine._overlaps[ca]
-                    or (aend <= bst and cb in engine.cameras[ca].transition_to)
-                    or (bend <= ast and ca in engine.cameras[cb].transition_to)
-                )
-                if not permitted:
+                relation = None
+                if ca == cb:
+                    earlier, later = (a, b) if aend < bst else (b, a)
+                    tail = max(earlier, key=lambda o: o.timestamp_s)
+                    head = min(later, key=lambda o: o.timestamp_s)
+                    if head.timestamp_s > tail.timestamp_s and plausible_recovery(
+                        tail.bbox_xyxy, head.bbox_xyxy, gap
+                    ):
+                        relation = "same_camera"
+                elif cb in engine._overlaps[ca]:
+                    relation = "overlap"
+                elif aend < bst:
+                    relation = engine.graph.relation(ca, cb, bst - aend)
+                elif bend < ast:
+                    relation = engine.graph.relation(cb, ca, ast - bend)
+                if relation is None:
                     continue
                 ga, gb = gallery(a), gallery(b)
                 if min(len(ga), len(gb)) < config.tracklet_min_samples:
@@ -97,7 +122,16 @@ def reconcile(engine, observations, assignments, tracks, exits):
                         median(max(row[j] for row in matrix) for j in range(len(gb))),
                     ]
                 )
-                scores.append(score)
+                geo = engine.floor.between(a, b) if engine.floor else None
+                if geo is not None and score >= 0.4:
+                    engine.floor.stats["offline_evaluations"] += 1
+                    score += geo
+                scores.append(
+                    min(
+                        1.0,
+                        score + engine.graph.bonus(relation, config.adjacency_bonus),
+                    )
+                )
         return max(scores) if scores else None
 
     threshold = (
@@ -155,7 +189,9 @@ def reconcile(engine, observations, assignments, tracks, exits):
                 "merged_id": b,
                 "score": round(score, 8),
                 "threshold": threshold,
-                "reason": "offline_multiframe_reid",
+                "reason": "offline_multiframe_reid_floor"
+                if engine.floor
+                else "offline_multiframe_reid",
             }
         )
 

@@ -191,8 +191,11 @@ class AssociationConfig:
     offline_reconcile: bool = True
     tracklet_threshold: float | None = None
     tracklet_min_samples: int = 3
+    adjacency_bonus: float = 0.04
 
     def __post_init__(self) -> None:
+        if not isfinite(self.adjacency_bonus) or not 0 <= self.adjacency_bonus <= 0.15:
+            raise ValueError("adjacency_bonus must be in [0, 0.15]")
         if (
             self.tracklet_threshold is not None
             and not -1 <= self.tracklet_threshold <= 1
@@ -230,6 +233,7 @@ class TrackState:
     close_reason: str | None = None
     camera_ids: set[str] = field(default_factory=set)
     camera_last_seen: dict[str, float] = field(default_factory=dict)
+    camera_last_bbox: dict[str, tuple[float, ...]] = field(default_factory=dict)
     embedding_model_id: str | None = None
     embedding_gallery: list[tuple[float, tuple[float, ...]]] = field(
         default_factory=list

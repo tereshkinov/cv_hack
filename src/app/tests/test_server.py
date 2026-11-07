@@ -55,3 +55,44 @@ def test_bad_calibration_is_400_without_changing_project(app):
     with pytest.raises(HTTPError) as error:
         call(base + "/api/project", [1, 2])
     assert error.value.code == 400
+
+
+def test_local_plan_catalog_and_raster_upload(app, monkeypatch):
+    import cv2
+    import numpy as np
+
+    from src.app import server
+
+    base, project_path = app
+    monkeypatch.setattr(server, "ROOT", project_path.parent)
+    directory = project_path.parent / "data/raw"
+    directory.mkdir(parents=True)
+    cv2.imwrite(
+        str(directory / "office.png"), np.full((20, 30, 3), 180, dtype=np.uint8)
+    )
+    _, body = call(base + "/api/plans")
+    assets = json.loads(body)
+    assert len(assets) == 1 and assets[0]["width"] == 30 and assets[0]["height"] == 20
+    assert call(base + "/api/plan-image?id=" + assets[0]["id"])[1].startswith(
+        b"\x89PNG"
+    )
+    with pytest.raises(HTTPError) as error:
+        call(base + "/api/plan-image?id=../../outside")
+    assert error.value.code == 404
+    raw = (directory / "office.png").read_bytes()
+    request = Request(
+        base + "/api/plan-upload",
+        data=raw,
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    with urlopen(request) as response:
+        uploaded = json.load(response)
+    assert uploaded["id"] != assets[0]["id"] and uploaded["width"] == 30
+    request = Request(
+        base + "/api/plan-upload",
+        data=b"not an image",
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    with pytest.raises(HTTPError) as error:
+        urlopen(request)
+    assert error.value.code == 400

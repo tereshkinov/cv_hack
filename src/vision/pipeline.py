@@ -37,13 +37,14 @@ class Options:
     image_size: int = 640
     confidence: float = 0.1
     frame_stride: int = 1
-    local_buffer_s: float = 1.0
+    local_buffer_s: float = 5.0
     embedding_interval_s: float = 0.5
     min_crop_height: int = 48
     min_sharpness: float = 10.0
     max_overlap: float = 0.6
     top_k: int = 5
     max_frames: int | None = None
+    max_duration_s: float = 0.0
     preview: bool = False
 
 
@@ -108,7 +109,7 @@ def validate_options(o):
         raise ValueError('frame_stride/top_k/image_size must be positive')
     if not 0 < o.confidence <= 1 or not 0 <= o.max_overlap <= 1:
         raise ValueError('Invalid confidence or max_overlap')
-    for x in (o.local_buffer_s, o.embedding_interval_s, o.min_sharpness):
+    for x in (o.local_buffer_s, o.embedding_interval_s, o.min_sharpness, o.max_duration_s):
         if not math.isfinite(x) or x < 0:
             raise ValueError('Timing and sharpness settings must be finite and nonnegative')
     if o.min_crop_height < 1 or (o.max_frames is not None and o.max_frames < 1):
@@ -207,7 +208,11 @@ def process_camera(camera, root, output, options, detector, encoder, stream):
                                      fps / options.frame_stride, (width, height))
             if not writer.isOpened():
                 raise ValueError(f'Cannot create preview: {preview_path}')
-        while options.max_frames is None or decoded < options.max_frames:
+        frame_limit = options.max_frames
+        if options.max_duration_s > 0:
+            duration_limit = math.ceil(options.max_duration_s * fps - 1e-9)
+            frame_limit = min(frame_limit, duration_limit) if frame_limit is not None else duration_limit
+        while frame_limit is None or decoded < frame_limit:
             ok, frame = cap.read()
             if not ok:
                 break

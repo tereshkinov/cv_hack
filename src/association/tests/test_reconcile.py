@@ -90,11 +90,23 @@ def test_offline_correction_respects_direction_and_feature_space():
     assert len(tracks) == 2
 
 
-def test_reconciliation_is_deterministic_and_same_camera_ids_stay_distinct():
+def test_reconciliation_is_deterministic_and_recovers_same_camera_fragments():
     rows = segment("cam1", "a", 0) + delayed_target()
     assert AssociationEngine(cameras()).run(rows) == AssociationEngine(cameras()).run(
         reversed(rows)
     )
     rows = segment("cam1", "a", 0) + delayed_target("cam1")
     _, tracks = AssociationEngine(cameras()).run(rows)
-    assert len(tracks) == 2
+    assert len(tracks) == 1
+
+
+def test_offline_recovery_cannot_merge_simultaneous_same_camera_people():
+    rows = segment("cam1", "a", 0) + segment("cam1", "b", 0.5)
+    assert len(AssociationEngine(cameras()).run(rows)[1]) == 2
+
+
+def test_offline_recovery_rejects_far_fragments_without_first_embedding():
+    rows = segment("cam1", "a", 0) + [
+        replace(o, bbox_xyxy=(2000, 20, 2100, 200)) for o in delayed_target("cam1")
+    ]
+    assert len(AssociationEngine(cameras()).run(rows)[1]) == 2

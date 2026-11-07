@@ -63,3 +63,17 @@ def test_import_does_not_trust_an_arbitrary_matrix():
     bad["walls"] = [{"id": "w", "a": [0, 0], "b": [100, 100]}]
     with pytest.raises(ValueError):
         validate_project(bad)
+
+
+def test_plan_metadata_uses_explicit_units_and_rejects_external_assets():
+    state = default_project()
+    state["coordinate_units"] = "relative"
+    state["plan_background"] = {"image_id": "a" * 20, "opacity": 0.85}
+    assert validate_project(state)["coordinate_units"] == "relative"
+    for bad in [
+        {"image_id": "https://example.com/private.png"},
+        {"image_id": "a" * 20, "opacity": 2},
+    ]:
+        state["plan_background"] = bad
+        with pytest.raises(ValueError):
+            validate_project(state)

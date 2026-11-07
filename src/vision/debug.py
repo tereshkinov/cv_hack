@@ -19,7 +19,7 @@ def choose_video():
 
 
 def debug_video(root, video=None, output=None, device='cpu', max_frames=None,
-                open_result=False, choose=False, embedding='none'):
+                open_result=False, choose=False, embedding='none', max_duration_s=180.0):
     from .pipeline import Options, run
     if choose:
         if video is not None:
@@ -39,7 +39,7 @@ def debug_video(root, video=None, output=None, device='cpu', max_frames=None,
         {'camera_id': 'debug', 'video_path': str(video), 'time_offset_s': 0}]}))
     print(f'Input: {video}\nOutput: {output}\nProcessing video; preview opens after completion.', flush=True)
     report = run(config, output, root, Options(device=device, embedding=embedding,
-                    max_frames=max_frames, preview=True))
+                    max_frames=max_frames, max_duration_s=max_duration_s, preview=True))
     source = output / report['cameras'][0]['preview_file']
     preview = output / 'tracked.mp4'
     source.rename(preview)

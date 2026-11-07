@@ -13,9 +13,13 @@ DEFAULT_OPTIONS = {
     "device": "cpu",
     "confidence": 0.1,
     "frame_stride": 1,
-    "timeout_s": 10.0,
-    "similarity_threshold": 0.75,
-    "tracklet_threshold": 0.65,
+    "timeout_s": 15.0,
+    "max_duration_s": 180.0,
+    "local_buffer_s": 5.0,
+    "adjacency_bonus": 0.04,
+    "ambiguity_margin": 0.03,
+    "similarity_threshold": 0.72,
+    "tracklet_threshold": 0.62,
     "preview_fps": 10,
     "fusion_distance_m": 2.0,
     "smoothing_tau_s": 0.25,
@@ -32,6 +36,10 @@ def validate_options(options):
     for key, low, high in [
         ("confidence", 0.01, 1),
         ("timeout_s", 0, 300),
+        ("max_duration_s", 0, 86400),
+        ("local_buffer_s", 0, 30),
+        ("adjacency_bonus", 0, 0.15),
+        ("ambiguity_margin", 0, 0.2),
         ("similarity_threshold", 0, 1),
         ("tracklet_threshold", 0, 1),
         ("fusion_distance_m", 0.1, 50),
@@ -98,13 +106,20 @@ class Jobs:
         results = [self.status(p.parent) for p in self.run_root.glob("*/job.json")]
         return sorted(results, key=lambda job: job["created_at"], reverse=True)
 
-    def start(self, project, cameras, options, kind="pipeline"):
+    def start(self, project, cameras, options, kind="pipeline", source_run_id=None):
         with self.lock:
             if any(p.poll() is None for p in self.processes.values()):
                 raise ValueError(
                     "Уже выполняется обработка. Дождитесь её или остановите запуск."
                 )
             options = validate_options(options)
+            if kind in {"projection", "reassociate"}:
+                from .review_data import validate_projection_source
+
+                source = self.folder(source_run_id)
+                if self.status(source)["status"] != "complete":
+                    raise ValueError("Выберите завершённый результат для проекции")
+                validate_projection_source(source, cameras)
             folder = self.run_root / (
                 datetime.now(UTC).strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
             )
@@ -112,6 +127,7 @@ class Jobs:
             spec = {
                 "id": folder.name,
                 "kind": kind,
+                "source_run_id": source_run_id,
                 "created_at": time.time(),
                 "options": options,
                 "camera_names": [c["name"] for c in project["cameras"]],
