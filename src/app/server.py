@@ -391,7 +391,7 @@ class Handler(BaseHTTPRequestHandler):
                 body = self.json_body()
                 project = validate_project(body["project"])
                 cameras = camera_manifest(project, self.server.videos(), ROOT)
-                if parts[3] != "tracklets" and not any(
+                if parts[3] == "project" and not any(
                     c.get("calibration") for c in project["cameras"]
                 ):
                     raise ValueError("Сначала привяжите к полу хотя бы одну камеру")
@@ -452,6 +452,8 @@ class Handler(BaseHTTPRequestHandler):
                 with self.server.save_lock:
                     if preserve_timeout and path.exists():
                         saved = json.loads(path.read_text())
+                        if "motion_model" not in project and "motion_model" in saved:
+                            project["motion_model"] = saved["motion_model"]
                         project["processing"]["timeout_s"] = saved.get(
                             "processing", {}
                         ).get("timeout_s", DEFAULT_OPTIONS["timeout_s"])

@@ -101,6 +101,7 @@ def test_local_plan_catalog_and_raster_upload(app, monkeypatch):
 def test_camera_editor_save_preserves_latest_retention_setting(app):
     base, path = app
     state = validate_project(default_project())
+    state["motion_model"] = {"provisional": True, "nodes": []}
     state["processing"]["timeout_s"] = 60
     call(base + "/api/project", state)
     stale = validate_project(default_project())
@@ -110,6 +111,7 @@ def test_camera_editor_save_preserves_latest_retention_setting(app):
     saved = json.loads(path.read_text())
     assert saved["processing"]["timeout_s"] == 60 and reply["timeout_s"] == 60
     assert saved["walls"] == stale["walls"]
+    assert saved["motion_model"] == state["motion_model"]
     # Already open editor versions may still POST the old full project.
     request = Request(
         base + "/api/project",

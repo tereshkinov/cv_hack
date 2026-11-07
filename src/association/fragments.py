@@ -8,7 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from statistics import fmean, median
 
-from .scoring import appearance_quality, decide, spatial_input
+from .scoring import appearance_quality, boundary_spatial_input, decide
 from .topology import plausible_recovery
 
 
@@ -188,8 +188,7 @@ def boundary_evidence(engine, left, right):
         median(appearance_quality(o, engine.cameras[o.camera_id]) for o in g)
         for g in [ga, gb]
     )
-    spatial = engine.floor.between_evidence(a, b) if engine.floor else None
-    geo, gq = spatial_input(spatial)
+    geo, gq, spatial_details, boundary = boundary_spatial_input(engine, a, b, mode)
     threshold = (
         cfg.tracklet_threshold
         if cfg.tracklet_threshold is not None
@@ -203,7 +202,7 @@ def boundary_evidence(engine, left, right):
         engine.graph.bonus(relation, cfg.adjacency_bonus),
         threshold,
         geometry_preweighted=True,
-        spatial_details=spatial.as_dict() if spatial else None,
+        spatial_details=spatial_details,
     )
     score = evidence.score
     # One-frame fragments can recover a supported episode, but a lucky pair is insufficient.
@@ -215,6 +214,7 @@ def boundary_evidence(engine, left, right):
         "mode": mode,
         "reason": evidence.reason,
         "support_count": min(len(ga), len(gb)),
+        "boundary_geometry": boundary.as_dict() if boundary else None,
         **evidence.export(),
     }
 

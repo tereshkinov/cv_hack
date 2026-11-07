@@ -386,6 +386,8 @@ def reassociate_cached(
             str(options["ambiguity_margin"]),
             "--adjacency-bonus",
             str(options["adjacency_bonus"]),
+            "--transition-overlap-tolerance-s",
+            str(options.get("transition_overlap_tolerance_s", 0.75)),
         ]
     )
     rows = [
@@ -414,6 +416,7 @@ def reassociate_cached(
         "tracklet_threshold",
         "ambiguity_margin",
         "adjacency_bonus",
+        "transition_overlap_tolerance_s",
     ]:
         data["options"][key] = options[key]
     data["paths"], data["projection_rejected"] = project_paths(

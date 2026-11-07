@@ -47,6 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tracklet-threshold", type=float, default=None)
     parser.add_argument("--adjacency-bonus", type=float, default=0.04)
     parser.add_argument("--tracklet-min-samples", type=int, default=3)
+    parser.add_argument("--transition-overlap-tolerance-s", type=float, default=0.75)
     return parser
 
 
@@ -71,6 +72,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         offline_reconcile=not args.no_offline_reconcile,
         tracklet_threshold=args.tracklet_threshold,
         tracklet_min_samples=args.tracklet_min_samples,
+        transition_overlap_tolerance_s=args.transition_overlap_tolerance_s,
     )
     cameras = load_cameras(args.cameras)
     observations = load_observations(args.observations)
@@ -100,6 +102,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "tracklet_threshold": config.tracklet_threshold
                 if config.tracklet_threshold is not None
                 else config.similarity_threshold,
+                "transition_overlap_tolerance_s": config.transition_overlap_tolerance_s,
                 "merges": engine.reconciliation_log,
                 "merges_scope": "provisional"
                 if config.fragment_mode != "off"
@@ -112,6 +115,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "statistics": dict(engine.floor.stats) if engine.floor else {},
                     "projection_report": engine.floor.projection_report(observations)
                     if engine.floor
+                    else None,
+                },
+                "motion_model": {
+                    "enabled": engine.route_model is not None,
+                    "scale_source": engine.route_model.scale_source
+                    if engine.route_model
+                    else None,
+                    "meters_per_unit": engine.route_model.meters_per_unit
+                    if engine.route_model
                     else None,
                 },
             },

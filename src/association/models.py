@@ -200,6 +200,7 @@ class AssociationConfig:
     confirmation_window_s: float = 1.0
     boundary_window_s: float = 2.0
     fragment_beam_width: int = 24
+    transition_overlap_tolerance_s: float = 0.75
 
     def __post_init__(self) -> None:
         if self.fragment_mode not in {"off", "boundary", "rebuild"}:
@@ -229,6 +230,11 @@ class AssociationConfig:
             raise ValueError("decision_mode must be baseline or balanced")
         if not isfinite(self.adjacency_bonus) or not 0 <= self.adjacency_bonus <= 0.15:
             raise ValueError("adjacency_bonus must be in [0, 0.15]")
+        if (
+            not isfinite(self.transition_overlap_tolerance_s)
+            or not 0 <= self.transition_overlap_tolerance_s <= 5
+        ):
+            raise ValueError("transition_overlap_tolerance_s must be in [0, 5]")
         if (
             self.tracklet_threshold is not None
             and not -1 <= self.tracklet_threshold <= 1

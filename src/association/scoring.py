@@ -121,3 +121,31 @@ def decide(
         geometry_preweighted,
         spatial_details,
     )
+
+
+def boundary_spatial_input(engine, left, right, mode):
+    """Use one spatial source per boundary; reliability is applied exactly once.
+
+    Route timing or same-camera motion replaces the generic floor term. For
+    floor-backed boundaries retain the existing native weighting and fade.
+    """
+    matcher = getattr(engine, "boundary_geometry", None)
+    boundary = matcher.compare(left, right, mode) if matcher else None
+    if (
+        boundary is not None
+        and boundary.available
+        and not boundary.reason.startswith("floor:")
+    ):
+        value = clamp(boundary.value)
+        reliability = clamp(boundary.reliability)
+        cap = 0.06 if boundary.support_count < 2 else 0.09
+        adjustment = (
+            (value - 0.5) * 2 * cap if value >= 0.5 else -(0.5 - value) * 2 * 0.20
+        ) * reliability
+        details = boundary.as_dict()
+        details["adjustment"] = adjustment
+        return adjustment, reliability, details, boundary
+    spatial = engine.floor.between_evidence(left, right) if engine.floor else None
+    adjustment, reliability = spatial_input(spatial)
+    details = spatial.as_dict() if spatial else None
+    return adjustment, reliability, details, boundary

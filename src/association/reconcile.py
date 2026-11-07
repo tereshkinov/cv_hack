@@ -88,6 +88,9 @@ def reconcile(engine, observations, assignments, tracks, exits):
                 if gap > config.timeout_s:
                     continue
                 relation = None
+                boundary_left = None
+                boundary_right = None
+                boundary_mode = None
                 if ca == cb:
                     earlier, later = (a, b) if aend < bst else (b, a)
                     tail = max(earlier, key=lambda o: o.timestamp_s)
@@ -97,12 +100,30 @@ def reconcile(engine, observations, assignments, tracks, exits):
                         or plausible_recovery(tail.bbox_xyxy, head.bbox_xyxy, gap)
                     ):
                         relation = "same_camera"
+                        boundary_left, boundary_right = earlier, later
+                        boundary_mode = "same_camera_recovery"
                 elif cb in engine._overlaps[ca]:
                     relation = "overlap"
-                elif aend < bst:
-                    relation = engine.graph.relation(ca, cb, bst - aend)
-                elif bend < ast:
-                    relation = engine.graph.relation(cb, ca, ast - bend)
+                    boundary_left, boundary_right = a, b
+                    boundary_mode = "simultaneous_overlap"
+                elif ast < bst and bst - aend > -config.transition_overlap_tolerance_s:
+                    relation = engine.graph.relation(
+                        ca,
+                        cb,
+                        bst - aend,
+                        config.transition_overlap_tolerance_s,
+                    )
+                    boundary_left, boundary_right = a, b
+                    boundary_mode = "sequential_transition"
+                elif bst < ast and ast - bend > -config.transition_overlap_tolerance_s:
+                    relation = engine.graph.relation(
+                        cb,
+                        ca,
+                        ast - bend,
+                        config.transition_overlap_tolerance_s,
+                    )
+                    boundary_left, boundary_right = b, a
+                    boundary_mode = "sequential_transition"
                 if relation is None:
                     continue
                 ga, gb = gallery(a), gallery(b)
@@ -123,13 +144,14 @@ def reconcile(engine, observations, assignments, tracks, exits):
                         median(max(row[j] for row in matrix) for j in range(len(gb))),
                     ]
                 )
-                geo = (
-                    engine.floor.between(a, b)
-                    if engine.floor and config.decision_mode == "baseline"
-                    else None
+                from .scoring import boundary_spatial_input
+
+                geo, gq, spatial_details, boundary = boundary_spatial_input(
+                    engine, boundary_left, boundary_right, boundary_mode
                 )
+                boundary_adjustment = geo
                 if config.decision_mode == "balanced":
-                    from .scoring import appearance_quality, decide, spatial_input
+                    from .scoring import appearance_quality, decide
 
                     aq = min(
                         median(
@@ -138,10 +160,6 @@ def reconcile(engine, observations, assignments, tracks, exits):
                         )
                         for samples in [ga, gb]
                     )
-                    spatial = (
-                        engine.floor.between_evidence(a, b) if engine.floor else None
-                    )
-                    geo, gq = spatial_input(spatial)
                     threshold_value = (
                         config.tracklet_threshold
                         if config.tracklet_threshold is not None
@@ -155,9 +173,23 @@ def reconcile(engine, observations, assignments, tracks, exits):
                         engine.graph.bonus(relation, config.adjacency_bonus),
                         threshold_value,
                         geometry_preweighted=True,
-                        spatial_details=spatial.as_dict() if spatial else None,
+                        spatial_details=spatial_details,
                     )
-                    scores.append(decision.score)
+                    scores.append(
+                        (
+                            decision.score,
+                            {
+                                "relation": relation,
+                                "boundary_adjustment": boundary_adjustment,
+                                "boundary_evidence": boundary.as_dict()
+                                if boundary and boundary.available
+                                else None,
+                                "boundary_diagnostic": boundary.as_dict()
+                                if boundary
+                                else None,
+                            },
+                        )
+                    )
                     engine.decision_log.append(
                         {
                             "phase": "offline",
@@ -168,15 +200,29 @@ def reconcile(engine, observations, assignments, tracks, exits):
                     )
                     continue
                 if geo is not None and score >= 0.4:
-                    engine.floor.stats["offline_evaluations"] += 1
                     score += geo
+                    if engine.floor:
+                        engine.floor.stats["offline_evaluations"] += 1
                 scores.append(
-                    min(
-                        1.0,
-                        score + engine.graph.bonus(relation, config.adjacency_bonus),
+                    (
+                        min(
+                            1.0,
+                            score
+                            + engine.graph.bonus(relation, config.adjacency_bonus),
+                        ),
+                        {
+                            "relation": relation,
+                            "boundary_adjustment": boundary_adjustment,
+                            "boundary_evidence": boundary.as_dict()
+                            if boundary is not None and boundary.available
+                            else None,
+                            "boundary_diagnostic": boundary.as_dict()
+                            if boundary is not None
+                            else None,
+                        },
                     )
                 )
-        return max(scores) if scores else None
+        return max(scores, key=lambda item: item[0]) if scores else None
 
     threshold = (
         config.tracklet_threshold
@@ -193,11 +239,12 @@ def reconcile(engine, observations, assignments, tracks, exits):
             for b in ids[i + 1 :]:
                 if any(find(g) == b for g in blocked):
                     continue
-                score = score_groups(groups[a], groups[b])
-                if score is not None:
-                    candidates.append((score, a, b))
+                result = score_groups(groups[a], groups[b])
+                if result is not None:
+                    score, details = result
+                    candidates.append((score, a, b, details))
         neighbors = defaultdict(list)
-        for score, a, b in candidates:
+        for score, a, b, _ in candidates:
             neighbors[a].append((score, b))
             neighbors[b].append((score, a))
         for options in neighbors.values():
@@ -212,8 +259,10 @@ def reconcile(engine, observations, assignments, tracks, exits):
 
         selected = next(
             (
-                (score, a, b)
-                for score, a, b in sorted(candidates, key=lambda e: (-e[0], e[1], e[2]))
+                (score, a, b, details)
+                for score, a, b, details in sorted(
+                    candidates, key=lambda e: (-e[0], e[1], e[2])
+                )
                 if score >= threshold
                 and confident(a, b, neighbors)
                 and confident(b, a, neighbors)
@@ -222,7 +271,7 @@ def reconcile(engine, observations, assignments, tracks, exits):
         )
         if selected is None:
             break
-        score, a, b = selected
+        score, a, b, details = selected
         parent[b] = a
         for gid in original_ids:
             if find(gid) == a:
@@ -233,9 +282,10 @@ def reconcile(engine, observations, assignments, tracks, exits):
                 "merged_id": b,
                 "score": round(score, 8),
                 "threshold": threshold,
-                "reason": "offline_multiframe_reid_floor"
-                if engine.floor
+                "reason": "offline_multiframe_reid_boundary"
+                if details["boundary_evidence"]
                 else "offline_multiframe_reid",
+                **details,
             }
         )
 
@@ -268,3 +318,13 @@ def reconcile(engine, observations, assignments, tracks, exits):
             }
         )
     return revised, sorted(exports, key=lambda t: t["global_track_id"]), log
+
+
+def _boundary_adjustment(evidence):
+    """Map normalized boundary compatibility to a small, reliability-weighted term."""
+    value = max(0.0, min(1.0, evidence.value))
+    reliability = max(0.0, min(1.0, evidence.reliability))
+    if value >= 0.5:
+        positive_cap = 0.06 if evidence.support_count < 2 else 0.09
+        return (value - 0.5) / 0.5 * positive_cap * reliability
+    return -(0.5 - value) / 0.5 * 0.20 * reliability
