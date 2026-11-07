@@ -1,0 +1,50 @@
+{
+  "branch": "tuning/geolocation",
+  "base": "baseline-floor-v1",
+  "real_office_data_available": false,
+  "tests": {
+        "association_passed": 42,
+        "full_suite_passed": 71,
+    "ruff": "passed"
+  },
+  "synthetic_projection_benchmark": {
+    "observations": 2272,
+    "repetitions": 11,
+    "median_seconds": 0.014005,
+    "observations_per_second": 162226.8,
+    "coordinate_units": "relative",
+    "cameras": {
+      "a": {
+        "total": 758,
+        "projected": 593,
+        "rejected": 165,
+        "coverage": 0.782322,
+        "reasons": {
+          "cropped_feet": 76,
+          "outside_plan": 89
+        }
+      },
+      "b": {
+        "total": 757,
+        "projected": 592,
+        "rejected": 165,
+        "coverage": 0.782034,
+        "reasons": {
+          "cropped_feet": 76,
+          "outside_plan": 89
+        }
+      },
+      "c": {
+        "total": 757,
+        "projected": 0,
+        "rejected": 757,
+        "coverage": 0.0,
+        "reasons": {
+          "missing_calibration": 757
+        }
+      }
+    },
+    "accuracy_claim": false,
+    "note": "Synthetic diagnostic workload; not office-camera accuracy."
+  }
+}
