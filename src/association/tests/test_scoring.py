@@ -92,3 +92,51 @@ def test_missing_calibration_has_no_spatial_bonus_and_incompatible_vectors_rejec
 def test_invalid_decision_mode():
     with pytest.raises(ValueError):
         AssociationConfig(decision_mode="unverified-probability")
+
+
+def test_native_pair_reliability_is_not_applied_twice():
+    from src.association.geolocation import SpatialEvidence
+    from src.association.scoring import spatial_input
+
+    spatial = SpatialEvidence(0.06, 0.5, 0.5, "simultaneous_overlap")
+    geometry, reliability = spatial_input(spatial)
+    decision = decide(
+        0.72,
+        1,
+        geometry,
+        reliability,
+        0,
+        0.72,
+        geometry_preweighted=True,
+        spatial_details=spatial.as_dict(),
+    )
+    assert decision.score == pytest.approx(0.81)
+    assert decision.spatial_details["reason"] == "simultaneous_overlap"
+
+
+def test_native_prediction_adds_motion_reliability_without_second_time_fade():
+    from math import exp
+
+    from src.association.geolocation import ExpectedRegion, SpatialEvidence
+    from src.association.scoring import spatial_input
+
+    region = ExpectedRegion((1, 1), None, 1, 1, 2, 0.25 * exp(-2 / 4), "relative")
+    spatial = SpatialEvidence(
+        0.12 * exp(-2 / 4), 0.1, region.reliability, "expected_position", 2, region
+    )
+    geometry, reliability = spatial_input(spatial)
+    assert geometry == pytest.approx(0.12 * exp(-2 / 4) * 0.25)
+    assert reliability == region.reliability
+    missing = SpatialEvidence(None, None, 0, "projection:cropped_feet")
+    assert spatial_input(missing) == (None, 0)
+
+
+def test_balanced_engine_exports_native_projection_reasons():
+    cams, project = setup()
+    rows = [obs("a", "first", 0, 100), obs("b", "next", 0.2, 105)]
+    engine = AssociationEngine(
+        cams, AssociationConfig(decision_mode="balanced"), project
+    )
+    engine.run(rows)
+    assert engine.decision_log[0]["geometry_preweighted"]
+    assert engine.decision_log[0]["spatial_details"]["reason"] == "expected_position"

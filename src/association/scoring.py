@@ -1,7 +1,7 @@
 """Experimental reliability-weighted evidence. Scores are not probabilities."""
 
 from dataclasses import asdict, dataclass
-from statistics import fmean
+from math import exp
 
 
 def clamp(value, low=0.0, high=1.0):
@@ -28,26 +28,23 @@ def appearance_quality(observation, camera=None):
     )
 
 
-def geometry_quality(floor, observations):
-    """Adapter to agent 2's unchanged signed evidence API; heuristic reliability."""
-    if not floor or not observations:
-        return 0.0
-    samples = observations[:: max(1, len(observations) // 16)]
-    weights = []
-    for observation in samples:
-        if floor.point(observation) is None:
-            weights.append(0.0)
-            continue
-        anchors = floor.calibrations[observation.camera_id].get("video_points", [])
-        x1, _, x2, y = observation.bbox_xyxy
-        x = (x1 + x2) / 2
-        # Extrapolation outside anchor bounds is weaker support, never proof of absence.
-        inside = not anchors or (
-            min(a[0] for a in anchors) <= x <= max(a[0] for a in anchors)
-            and min(a[1] for a in anchors) <= y <= max(a[1] for a in anchors)
+def spatial_input(evidence):
+    """Agent 2 already weights projection/sync/fade; apply only missing motion weight.
+
+    Simultaneous comparisons already include their full pair reliability.
+    For predictions, region reliability also contains motion confidence, which
+    the legacy signed adjustment does not include. Remove the already applied
+    time fade before using that remaining factor.
+    """
+    if evidence is None:
+        return None, 0.0
+    adjustment = evidence.adjustment
+    if adjustment is not None and evidence.region is not None:
+        remaining = min(
+            1.0, evidence.region.reliability / max(exp(-evidence.region.dt_s / 4), 1e-9)
         )
-        weights.append(0.85 if inside else 0.45)
-    return fmean(weights)
+        adjustment *= remaining
+    return adjustment, evidence.reliability if adjustment is not None else 0.0
 
 
 @dataclass(frozen=True)
@@ -62,6 +59,8 @@ class Evidence:
     accepted: bool
     trusted: bool
     reason: str
+    geometry_preweighted: bool = False
+    spatial_details: dict | None = None
 
     def export(self):
         return {
@@ -77,13 +76,18 @@ def decide(
     geometry_reliability,
     topology,
     threshold,
+    *,
+    geometry_preweighted=False,
+    spatial_details=None,
 ):
     aq = 0.5 + 0.5 * clamp(appearance_reliability)
     gq = clamp(geometry_reliability) if geometry is not None else 0.0
     # Reduce duplicate support from adjacency when floor geometry is available.
     graph = topology * (1 - 0.5 * gq)
     spatial = (
-        (geometry or 0) * gq * (1.5 if geometry is not None and geometry > 0 else 1)
+        (geometry or 0)
+        * (1 if geometry_preweighted else gq)
+        * (1.5 if geometry is not None and geometry > 0 else 1)
     )
     score = threshold + (appearance - threshold) * aq + graph + spatial
     reason = "supported" if score >= threshold else "insufficient_support"
@@ -114,4 +118,6 @@ def decide(
         accepted,
         trusted,
         reason,
+        geometry_preweighted,
+        spatial_details,
     )

@@ -49,7 +49,8 @@ def compare(baseline, experiment, output):
     ac, bc = Counter(a.values()), Counter(b.values())
     choose2 = lambda n: n * (n - 1) // 2
     common = sum(choose2(n) for n in contingency.values())
-    decisions = rows(experiment / "association/decisions.jsonl")
+    decision_path = experiment / "association/decisions.jsonl"
+    decisions = rows(decision_path) if decision_path.exists() else []
     summary = {
         "baseline_run": baseline.name,
         "experiment_run": experiment.name,

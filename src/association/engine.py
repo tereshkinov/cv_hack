@@ -216,11 +216,11 @@ class AssociationEngine:
                 self.floor.online(
                     observation, self._floor_history[track.global_track_id]
                 )
-                if self.floor
+                if self.floor and self.config.decision_mode == "baseline"
                 else None
             )
             if self.config.decision_mode == "balanced" and raw is not None:
-                evidence = self._balanced_evidence(observation, track, raw, geo)
+                evidence = self._balanced_evidence(observation, track, raw)
                 score = evidence.score
                 self._decision_evidence[
                     (observation.reference, track.global_track_id)
@@ -276,8 +276,8 @@ class AssociationEngine:
                 candidates.append((0.0, track, f"{topology_reason}_topology_baseline"))
         return sorted(candidates, key=lambda item: (-item[0], item[1].global_track_id))
 
-    def _balanced_evidence(self, observation, track, raw, geo):
-        from .scoring import appearance_quality, decide, geometry_quality
+    def _balanced_evidence(self, observation, track, raw):
+        from .scoring import appearance_quality, decide, spatial_input
 
         relation = self._topology_reason(observation, track)
         quality = appearance_quality(observation, self.cameras[observation.camera_id])
@@ -286,9 +286,14 @@ class AssociationEngine:
             if track.embedding_gallery
             else 0
         )
-        geo_quality = geometry_quality(self.floor, [observation])
-        history = self._floor_history[track.global_track_id]
-        geo_quality *= 1 if len(history) >= 3 else 0.65
+        spatial = (
+            self.floor.online_evidence(
+                observation, self._floor_history[track.global_track_id]
+            )
+            if self.floor
+            else None
+        )
+        geo, geo_quality = spatial_input(spatial)
         return decide(
             raw,
             min(quality, gallery_quality),
@@ -296,6 +301,8 @@ class AssociationEngine:
             geo_quality,
             self.graph.bonus(relation, self.config.adjacency_bonus),
             self.config.similarity_threshold,
+            geometry_preweighted=True,
+            spatial_details=spatial.as_dict() if spatial else None,
         )
 
     def _is_ambiguous(self, candidates: list[tuple[float, TrackState, str]]) -> bool:
@@ -412,15 +419,8 @@ class AssociationEngine:
             if pending and pending["gid"] == track.global_track_id:
                 if evidence is None:
                     raw = self._appearance_score(observation, track)
-                    geo = (
-                        self.floor.online(
-                            observation, self._floor_history[track.global_track_id]
-                        )
-                        if self.floor
-                        else None
-                    )
                     if raw is not None:
-                        evidence = self._balanced_evidence(observation, track, raw, geo)
+                        evidence = self._balanced_evidence(observation, track, raw)
                 times = pending["times"]
                 if evidence and evidence.accepted:
                     if not times or observation.timestamp_s - times[-1] >= 0.15:

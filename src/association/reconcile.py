@@ -122,9 +122,13 @@ def reconcile(engine, observations, assignments, tracks, exits):
                         median(max(row[j] for row in matrix) for j in range(len(gb))),
                     ]
                 )
-                geo = engine.floor.between(a, b) if engine.floor else None
+                geo = (
+                    engine.floor.between(a, b)
+                    if engine.floor and config.decision_mode == "baseline"
+                    else None
+                )
                 if config.decision_mode == "balanced":
-                    from .scoring import appearance_quality, decide, geometry_quality
+                    from .scoring import appearance_quality, decide, spatial_input
 
                     aq = min(
                         median(
@@ -133,10 +137,10 @@ def reconcile(engine, observations, assignments, tracks, exits):
                         )
                         for samples in [ga, gb]
                     )
-                    gq = min(
-                        geometry_quality(engine.floor, a),
-                        geometry_quality(engine.floor, b),
+                    spatial = (
+                        engine.floor.between_evidence(a, b) if engine.floor else None
                     )
+                    geo, gq = spatial_input(spatial)
                     threshold_value = (
                         config.tracklet_threshold
                         if config.tracklet_threshold is not None
@@ -149,6 +153,8 @@ def reconcile(engine, observations, assignments, tracks, exits):
                         gq,
                         engine.graph.bonus(relation, config.adjacency_bonus),
                         threshold_value,
+                        geometry_preweighted=True,
+                        spatial_details=spatial.as_dict() if spatial else None,
                     )
                     scores.append(decision.score)
                     engine.decision_log.append(

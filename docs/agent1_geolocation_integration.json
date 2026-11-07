@@ -1,0 +1,137 @@
+{
+  "geolocation_commit": "4739bd2",
+  "geolocation_branch_tip": "eb3c056",
+  "merge_commit": "d15b54a",
+  "tests_passed": 82,
+  "source_run": "20261106-202306-cf5a526b",
+  "project_snapshot_run": "20261107-092940-57630200",
+  "observations": 2272,
+  "accuracy_measured": false,
+  "runs": [
+    {
+      "variant": "old_geo_baseline",
+      "id": "20261107-092940-57630200",
+      "tracks": 55
+    },
+    {
+      "variant": "old_geo_balanced",
+      "id": "20261107-092949-4fbc00ec",
+      "tracks": 60
+    },
+    {
+      "variant": "eaglem_geo_baseline",
+      "id": "20261107-100026-24fa7082",
+      "tracks": 55
+    },
+    {
+      "variant": "eaglem_geo_balanced_native_reliability",
+      "id": "20261107-100047-e7b28217",
+      "tracks": 56
+    }
+  ],
+  "projection_report": {
+    "coordinate_units": "relative",
+    "coordinate_units_are_metric": false,
+    "physical_speed_claimed": false,
+    "sync_uncertainty_s": 0.25,
+    "sync_verified": false,
+    "cameras": {
+      "cam01": {
+        "total_observations": 70,
+        "projected": 70,
+        "rejected": 0,
+        "coverage": 1.0,
+        "reasons": {
+          "projected": 70
+        },
+        "independent_validation": {
+          "count": 0,
+          "median_error_coordinate_units": null,
+          "max_error_coordinate_units": null,
+          "rejected_reasons": {}
+        }
+      },
+      "cam02": {
+        "total_observations": 90,
+        "projected": 90,
+        "rejected": 0,
+        "coverage": 1.0,
+        "reasons": {
+          "projected": 90
+        },
+        "independent_validation": {
+          "count": 0,
+          "median_error_coordinate_units": null,
+          "max_error_coordinate_units": null,
+          "rejected_reasons": {}
+        }
+      },
+      "cam03": {
+        "total_observations": 1293,
+        "projected": 1277,
+        "rejected": 16,
+        "coverage": 0.9876256767208044,
+        "reasons": {
+          "cropped_feet": 16,
+          "projected": 1277
+        },
+        "independent_validation": {
+          "count": 0,
+          "median_error_coordinate_units": null,
+          "max_error_coordinate_units": null,
+          "rejected_reasons": {}
+        }
+      },
+      "cam04": {
+        "total_observations": 339,
+        "projected": 319,
+        "rejected": 20,
+        "coverage": 0.9410029498525073,
+        "reasons": {
+          "cropped_feet": 20,
+          "projected": 319
+        },
+        "independent_validation": {
+          "count": 0,
+          "median_error_coordinate_units": null,
+          "max_error_coordinate_units": null,
+          "rejected_reasons": {}
+        }
+      },
+      "cam05": {
+        "total_observations": 480,
+        "projected": 469,
+        "rejected": 11,
+        "coverage": 0.9770833333333333,
+        "reasons": {
+          "cropped_feet": 11,
+          "projected": 469
+        },
+        "independent_validation": {
+          "count": 0,
+          "median_error_coordinate_units": null,
+          "max_error_coordinate_units": null,
+          "rejected_reasons": {}
+        }
+      }
+    }
+  },
+  "gallery_updates_blocked": 67,
+  "remaining_review_case": {
+    "camera_a": "cam05",
+    "start_a_s": 73.6,
+    "end_a_s": 86.8,
+    "camera_b": "cam04",
+    "start_b_s": 87.0,
+    "end_b_s": 89.0,
+    "geo_only_ids": [
+      "g18",
+      "g18"
+    ],
+    "balanced_ids": [
+      "g18",
+      "g27"
+    ]
+  },
+  "note": "No independent point labels or person ground truth. Projection availability and fewer IDs do not establish accuracy. User current project not overwritten."
+}

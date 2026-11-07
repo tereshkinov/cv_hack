@@ -83,6 +83,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     if engine.floor
                     else [],
                     "statistics": dict(engine.floor.stats) if engine.floor else {},
+                    "projection_report": engine.floor.projection_report(observations)
+                    if engine.floor
+                    else None,
                 },
             },
             indent=2,
