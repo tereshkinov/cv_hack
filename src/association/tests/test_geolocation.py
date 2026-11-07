@@ -224,3 +224,46 @@ def test_sync_uncertainty_is_exposed_and_overlap_mismatch_stays_neutral():
     assert aligned.reason == "simultaneous_overlap"
     assert 0 < aligned.reliability < 1
     assert aligned.time_delta_s == pytest.approx(0.05)
+
+
+def test_kalman_ranks_predicted_position_above_departure_and_grows_uncertainty():
+    cameras, project = setup()
+    matcher = FloorMatcher(project | {"floor_prediction": "kalman"}, cameras)
+    history = [(t, 3 + 1.6 * t, 5) for t in (0, 0.3, 0.7, 1.0, 1.4)]
+
+    expected = matcher.evaluate(history, 2.4, (6.84, 5), time_uncertainty_s=0.3)
+    old = matcher.evaluate(history, 2.4, (5.24, 5), time_uncertainty_s=0.3)
+    delayed = matcher.evaluate(history, 3.4, (8.44, 5), time_uncertainty_s=0.3)
+
+    assert expected.region.center == pytest.approx((6.84, 5), abs=0.15)
+    assert expected.discrepancy < old.discrepancy
+    assert expected.adjustment > old.adjustment
+    assert expected.region.along_radius > expected.region.across_radius
+    assert delayed.region.across_radius > expected.region.across_radius
+    assert delayed.reliability < expected.reliability
+    assert matcher.evaluate(history, 5.5, (9, 5)).reason == "long_gap"
+
+
+def test_kalman_does_not_infer_speed_from_duplicate_times_or_an_old_segment():
+    cameras, project = setup()
+    matcher = FloorMatcher(project | {"floor_prediction": "kalman"}, cameras)
+    history = [(0, 1, 5), (0.3, 2, 5), (1.2, 4, 5), (1.2, 6, 5)]
+
+    region, reason = matcher.expected_region(history, 1.7)
+
+    assert reason == "kalman_insufficient_history"
+    assert region.center == (5, 5)
+    assert region.direction is None
+    assert region.along_radius == region.across_radius
+
+
+def test_kalman_uses_recent_movement_after_a_turn():
+    cameras, project = setup()
+    matcher = FloorMatcher(project | {"floor_prediction": "kalman"}, cameras)
+    history = [(0, 2, 5), (0.3, 2.5, 5), (0.6, 3, 5)]
+    history += [(t, 3, 5 + 1.6 * (t - 0.6)) for t in (0.9, 1.2, 1.5, 1.8, 2.1)]
+
+    straight = matcher.evaluate(history, 2.6, (4, 7.4))
+    turned = matcher.evaluate(history, 2.6, (3, 8.2))
+
+    assert turned.discrepancy < straight.discrepancy

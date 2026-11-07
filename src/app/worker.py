@@ -64,13 +64,18 @@ def execute(folder):
                 {
                     "decision_mode": "balanced"
                     if spec["kind"] in {"balanced", "tracklets"}
-                    else spec["options"].get("association_mode", "geometry")
+                    else spec["options"].get("association_mode", "geometry_ambiguity")
                 }
                 if spec["kind"] != "projection"
                 else {}
             )
-            if kwargs.get("decision_mode") == "geometry":
+            if kwargs.get("decision_mode") in {
+                "geometry",
+                "geometry_visual",
+                "geometry_ambiguity",
+            }:
                 kwargs["confirm_tracks"] = True
+                kwargs["fragment_mode"] = "rebuild"
             if spec["kind"] == "tracklets":
                 from .jobs import TRACKLET_PROFILES
 
@@ -147,12 +152,17 @@ def execute(folder):
                 "--project",
                 str(folder / "project.json"),
                 "--decision-mode",
-                settings.get("association_mode", "geometry"),
+                settings.get("association_mode", "geometry_ambiguity"),
                 *(
                     ["--confirm-tracks"]
-                    if settings.get("association_mode", "geometry") == "geometry"
+                    if settings.get("association_mode", "geometry_ambiguity")
+                    in {"geometry", "geometry_visual", "geometry_ambiguity"}
                     else []
                 ),
+                "--fragment-mode",
+                "rebuild"
+                if settings.get("association_mode") in {"geometry", "geometry_visual"}
+                else "off",
                 "--timeout-s",
                 str(settings["timeout_s"]),
                 "--similarity-threshold",

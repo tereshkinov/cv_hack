@@ -8,6 +8,7 @@ from collections import defaultdict
 from dataclasses import replace
 from math import exp
 from statistics import median
+from types import SimpleNamespace
 
 from src.floor_mesh import overlap_report
 
@@ -87,45 +88,48 @@ def _geometry(engine, a, b):
         else None
     )
     evidence = _partial_image_support(engine, a, b)
+    # A configured walkable route handles corners. Do not reject it with a
+    # straight-line extrapolation across a wall before consulting the route.
+    if (
+        mode == "sequential_transition"
+        and boundary
+        and boundary.available
+        and boundary.reason.startswith("route:")
+    ):
+        evidence = (
+            boundary.value,
+            boundary.reliability,
+            boundary.discrepancy,
+            boundary.reason,
+            boundary.support_count,
+        )
     if floor and evidence is None:
         if overlap >= 0:
-            # Only compare simultaneous measurements. Never compare an entire history to its mean.
-            distances = []
-            qualities = []
-            right = [
-                (o, floor.projection(o))
-                for o in b.observations
-                if o.timestamp_s <= a.end_s + 0.3
+            # One shared model accounts for time offsets, projection quality and
+            # synchronization uncertainty. Do not build a second tighter radius.
+            common_end = min(a.end_s, b.end_s)
+            left = [
+                o
+                for o in a.observations
+                if b.start_s - floor.sync_uncertainty_s
+                <= o.timestamp_s
+                <= common_end + floor.sync_uncertainty_s
             ]
-            for o in a.observations:
-                if o.timestamp_s < b.start_s - 0.3:
-                    continue
-                p = floor.projection(o)
-                options = [
-                    (abs(o.timestamp_s - x.timestamp_s), q)
-                    for x, q in right
-                    if q.available
-                ]
-                if not p.available or not options:
-                    continue
-                dt, q = min(options, key=lambda item: item[0])
-                if dt > 0.3:
-                    continue
-                from math import hypot
-
-                distances.append(
-                    hypot(p.point[0] - q.point[0], p.point[1] - q.point[1])
-                    / max(floor.radius + floor.speed * dt, 0.001)
-                )
-                qualities.append(min(p.reliability, q.reliability))
-            if distances:
-                discrepancy = median(distances)
+            right = [
+                o
+                for o in b.observations
+                if a.start_s - floor.sync_uncertainty_s
+                <= o.timestamp_s
+                <= common_end + floor.sync_uncertainty_s
+            ]
+            spatial = floor.between_evidence(left, right)
+            if spatial.available and spatial.discrepancy is not None:
                 evidence = (
-                    exp(-0.5 * discrepancy**2),
-                    median(qualities),
-                    discrepancy,
-                    "simultaneous_floor",
-                    len(distances),
+                    exp(-0.5 * spatial.discrepancy**2),
+                    spatial.reliability,
+                    spatial.discrepancy,
+                    spatial.reason,
+                    min(len(left), len(right)),
                 )
         elif b.start_s - a.end_s <= 4:
             spatial = floor.between_evidence(a.tail(), b.head())
@@ -139,7 +143,14 @@ def _geometry(engine, a, b):
                 )
     # Route timing is useful in blind corridors. Image motion supports cropped feet
     # on the same camera; neither invents a floor coordinate for display.
-    if evidence is None and boundary and boundary.available:
+    if (
+        boundary
+        and boundary.available
+        and (
+            evidence is None
+            or (evidence[1] < 0.30 and boundary.reliability > evidence[1])
+        )
+    ):
         evidence = (
             boundary.value,
             boundary.reliability,
@@ -205,10 +216,31 @@ def _geometry(engine, a, b):
         }
     if quality < 0.15:
         return None, details | {"reason": "geometry_too_uncertain"}
+    from .geometry_policy import decide_geometry
+
     if discrepancy is not None and discrepancy >= 3 and quality >= 0.6:
-        return 0.2, details | {"reason": "spatial_contradiction"}
-    score = 0.55 + 0.35 * value - 0.10 * (1 - quality)
-    return score, details
+        reason = "spatial_contradiction"
+        details["reason"] = reason
+    normalized = SimpleNamespace(
+        available=True,
+        value=value,
+        reliability=quality,
+        reason=reason,
+        mode=mode,
+        time_delta_s=b.start_s - a.end_s,
+    )
+    threshold = (
+        engine.config.tracklet_threshold
+        if engine.config.tracklet_threshold is not None
+        else engine.config.similarity_threshold
+    )
+    decision = decide_geometry(normalized, threshold)
+    details.update(
+        hard_reject=decision.hard_reject,
+        geometry_score=decision.geometry_score,
+        policy_reason=decision.reason,
+    )
+    return decision.score, details
 
 
 def associate_geometry(engine, observations, exits):
@@ -226,13 +258,21 @@ def associate_geometry(engine, observations, exits):
                 engine.graph.overlaps[b].add(a)
     else:
         patches = []
+    if engine.boundary_geometry:
+        engine.boundary_geometry.cameras = {
+            cid: replace(camera, overlap_with=frozenset(engine.graph.overlaps[cid]))
+            for cid, camera in engine.cameras.items()
+        }
     cfg = engine.config
+    original_provider = engine.boundary_provider
     engine.config = replace(cfg, fragment_mode="rebuild")
     try:
         nodes = fragments_from_observations(observations, engine.config, exits)
         cache = {}
         neighbors = defaultdict(list)
-        for i, a in enumerate(nodes):
+        for i, a in (
+            enumerate(nodes) if cfg.decision_mode == "geometry_ambiguity" else []
+        ):
             for b in nodes[i + 1 :]:
                 if b.start_s - a.end_s > cfg.timeout_s:
                     continue
@@ -271,7 +311,7 @@ def associate_geometry(engine, observations, exits):
                 )
             ambiguous = (
                 any(abs(score - s) < 0.08 for s in competitors)
-                or details.get("geometry_quality", 0) < 0.30
+                or details.get("reason") == "blind_gap_reachable"
             )
             if ambiguous:
                 similarity = _visual(engine, a, b)
@@ -288,7 +328,7 @@ def associate_geometry(engine, observations, exits):
                     return min(score, threshold - 0.04), details | {
                         "reason": "unresolved_geometry"
                     }
-                if details.get("geometry_quality", 0) < 0.30:
+                if details.get("reason") == "blind_gap_reachable":
                     threshold = (
                         cfg.tracklet_threshold
                         if cfg.tracklet_threshold is not None
@@ -302,10 +342,13 @@ def associate_geometry(engine, observations, exits):
                     # not strong identity evidence. Bound its margin conservatively.
                     score = threshold + 0.04 + min(0.10, (similarity - 0.80) * 0.5)
                 else:
-                    score += max(-0.12, min(0.12, (similarity - 0.70) * 0.5))
+                    weight = cfg.geometry_visual_weight
+                    score += max(-weight, min(weight, (similarity - 0.70) * 0.5))
             return score, details
 
-        engine.boundary_provider = provider
+        engine.boundary_provider = original_provider or (
+            provider if cfg.decision_mode == "geometry_ambiguity" else None
+        )
         seeds = [
             {
                 "camera_id": o.camera_id,
@@ -320,7 +363,10 @@ def associate_geometry(engine, observations, exits):
         assignments, tracks, report = rebuild_fragments(
             engine, observations, seeds, [], exits
         )
-        report["policy"] = "geometry_first"
+        report["policy"] = cfg.decision_mode
+        report["prediction_model"] = (
+            engine.floor.prediction_model if engine.floor else None
+        )
         report["calibrated_overlap_patches"] = patches
         report["appearance_tiebreak_edges"] = sum(
             bool(e.get("appearance_used")) for e in report.get("edges", [])
@@ -337,3 +383,4 @@ def associate_geometry(engine, observations, exits):
         return assignments, tracks
     finally:
         engine.config = cfg
+        engine.boundary_provider = original_provider

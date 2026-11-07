@@ -84,7 +84,7 @@ class AssociationEngine:
                 raise ValueError(f"unknown camera_id in exit event: {event.camera_id}")
             grouped_exits[event.timestamp_s].append(event)
 
-        if self.config.decision_mode == "geometry":
+        if self.config.decision_mode in {"geometry", "geometry_visual", "geometry_ambiguity"}:
             from .geometry_tracking import associate_geometry
             assignments, tracks = associate_geometry(self, observations, exit_events)
             self._assignments = assignments

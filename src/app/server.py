@@ -47,6 +47,8 @@ def validate_project(project):
             raise ValueError("Координаты и размеры должны быть конечными числами")
         return x
 
+    if project.get("floor_prediction", "heuristic") not in {"kalman", "heuristic"}:
+        raise ValueError("Прогноз пола: heuristic или kalman")
     units = project.get("coordinate_units", "meters")
     if units not in {"meters", "relative"}:
         raise ValueError("Единицы схемы: meters или relative")
@@ -468,19 +470,64 @@ class Handler(BaseHTTPRequestHandler):
                         body.get("method", "homography"),
                     ),
                 )
+            if route.path == "/api/tracking-settings":
+                body = self.json_body()
+                if (
+                    not isinstance(body, dict)
+                    or not body
+                    or set(body) - {"association_mode", "floor_prediction"}
+                ):
+                    raise ValueError("Ожидаются настройки сопоставления и прогноза")
+                if "association_mode" in body:
+                    validate_options({"association_mode": body["association_mode"]})
+                if "floor_prediction" in body and body["floor_prediction"] not in {
+                    "kalman",
+                    "heuristic",
+                }:
+                    raise ValueError("Прогноз пола: heuristic или kalman")
+                path = self.server.project_path
+                with self.server.save_lock:
+                    project = (
+                        json.loads(path.read_text())
+                        if path.exists()
+                        else default_project()
+                    )
+                    if "association_mode" in body:
+                        project.setdefault("processing", {})["association_mode"] = body[
+                            "association_mode"
+                        ]
+                    if "floor_prediction" in body:
+                        project["floor_prediction"] = body["floor_prediction"]
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    temporary = path.with_suffix(".tmp")
+                    temporary.write_text(
+                        json.dumps(project, ensure_ascii=False, indent=2) + "\n"
+                    )
+                    temporary.replace(path)
+                return self.reply(200, {"saved": True, **body})
             if route.path == "/api/project":
                 project = validate_project(self.json_body())
                 path = self.server.project_path
                 path.parent.mkdir(parents=True, exist_ok=True)
-                preserve_timeout = (
-                    parse_qs(route.query).get("preserve_timeout") == ["1"]
-                    or urlparse(self.headers.get("Referer", "")).path == "/"
+                preserve_timeout = parse_qs(route.query).get("preserve_timeout") == [
+                    "1"
+                ] or (
+                    urlparse(self.headers.get("Referer", "")).path == "/"
+                    and parse_qs(route.query).get("explicit_import") != ["1"]
                 )
                 with self.server.save_lock:
                     if preserve_timeout and path.exists():
                         saved = json.loads(path.read_text())
+                        if (
+                            "floor_prediction" not in project
+                            and "floor_prediction" in saved
+                        ):
+                            project["floor_prediction"] = saved["floor_prediction"]
                         if "motion_model" not in project and "motion_model" in saved:
                             project["motion_model"] = saved["motion_model"]
+                        project["processing"]["association_mode"] = saved.get(
+                            "processing", {}
+                        ).get("association_mode", DEFAULT_OPTIONS["association_mode"])
                         project["processing"]["timeout_s"] = saved.get(
                             "processing", {}
                         ).get("timeout_s", DEFAULT_OPTIONS["timeout_s"])

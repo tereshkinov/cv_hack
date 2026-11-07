@@ -12,7 +12,10 @@ def run(rows, cfg=None, project=None):
     cams, p = setup()
     engine = AssociationEngine(
         cams,
-        cfg or AssociationConfig(decision_mode="geometry", tracklet_threshold=0.62),
+        cfg
+        or AssociationConfig(
+            decision_mode="geometry_ambiguity", tracklet_threshold=0.62
+        ),
         project or p,
     )
     assignments, tracks = engine.run(rows)
@@ -46,7 +49,7 @@ def test_similar_clothing_cannot_override_geometric_contradiction():
     assert len(tracks) == 2
     assert (
         engine.fragment_report["constraints"][0]["reason"]
-        == "reliable_spatial_contradiction"
+        == "geometry_physical_contradiction"
     )
 
 
@@ -92,7 +95,9 @@ def test_timeout_and_explicit_exit_still_dominate_geometry():
     rows = series("a", "one", 100) + series("a", "back", 100, start=61)
     assert len(run(rows)[1]) == 2
     cams, p = setup()
-    engine = AssociationEngine(cams, AssociationConfig(decision_mode="geometry"), p)
+    engine = AssociationEngine(
+        cams, AssociationConfig(decision_mode="geometry_ambiguity"), p
+    )
     assert (
         len(
             engine.run(
@@ -125,7 +130,9 @@ def test_overlap_can_be_inferred_from_measured_patches_without_manual_camera_lin
             [[0, 0], [30, 0], [30, 30], [0, 30]],
         )
     engine = AssociationEngine(
-        cams, AssociationConfig(decision_mode="geometry", tracklet_threshold=0.62), p
+        cams,
+        AssociationConfig(decision_mode="geometry_ambiguity", tracklet_threshold=0.62),
+        p,
     )
     assignments, tracks = engine.run(
         series("a", "one", 100) + series("b", "other", 101)
@@ -188,3 +195,118 @@ def test_geometry_assignment_is_reproducible_when_input_order_changes():
     second = run(list(reversed(rows)))
     assert first[:2] == second[:2]
     assert first[2].fragment_report == second[2].fragment_report
+
+
+def test_kalman_mesh_route_takes_priority_over_straight_line_across_corner():
+    from src.association.fragments import FragmentWindow
+    from src.association.geometry_tracking import _geometry
+    from src.association.tests.test_reconcile import (
+        route_cameras,
+        route_project,
+        segment,
+    )
+
+    project = route_project()
+    project["floor_prediction"] = "kalman"
+    project["coordinate_units"] = "relative"
+    project["motion_model"]["meters_per_unit"] = 2
+    project["motion_model"]["nodes"] = [
+        {"id": "a", "point": [2, 2]},
+        {"id": "corner", "point": [2, 3]},
+        {"id": "b", "point": [3, 3]},
+    ]
+    project["motion_model"]["edges"] = [
+        {"a": "a", "b": "corner"},
+        {"a": "corner", "b": "b"},
+    ]
+    for camera in project["cameras"]:
+        camera["calibration"] = calibrate_mesh(
+            [[0, 0], [1000, 0], [1000, 1000], [0, 1000]],
+            [[0, 0], [10, 0], [10, 10], [0, 10]],
+        )
+    source = [
+        replace(o, bbox_xyxy=(90 + 50 * i, 100, 110 + 50 * i, 200))
+        for i, o in enumerate(segment("cam1", "a", 0))
+    ]
+    target = [
+        replace(o, bbox_xyxy=(290, 200, 310, 300)) for o in segment("cam3", "b", 3.2)
+    ]
+    engine = AssociationEngine(
+        route_cameras(),
+        AssociationConfig(decision_mode="geometry_ambiguity", tracklet_threshold=0.62),
+        project,
+    )
+    engine.floor.between_evidence = lambda *_: (_ for _ in ()).throw(
+        AssertionError("route duplicated by floor")
+    )
+    score, details = _geometry(
+        engine,
+        FragmentWindow("a", "cam1", tuple(source)),
+        FragmentWindow("b", "cam3", tuple(target)),
+    )
+    assert score > 0.62
+    assert details["reason"].startswith("route:")
+    assert (
+        details["boundary_geometry"]["details"]["speed_source"]
+        == "observed_boundary_motion"
+    )
+    assert details["boundary_geometry"]["details"]["distance_m"] == 4
+    assert (
+        engine.floor.project["cameras"][0]["calibration"]["method"]
+        == "piecewise_affine_floor_mesh"
+    )
+
+
+def test_overlap_uses_shared_synchronization_uncertainty_without_duplicate_radius():
+    from math import exp
+
+    from src.association.fragments import FragmentWindow
+    from src.association.geometry_tracking import _geometry
+
+    cams, p = setup()
+    p["processing"]["sync_uncertainty_s"] = 0.5
+    engine = AssociationEngine(
+        cams, AssociationConfig(decision_mode="geometry_ambiguity"), p
+    )
+    left = series("a", "left", 100)
+    right = series("b", "right", 120)
+    reference = engine.floor.between_evidence(left, right)
+    _, details = _geometry(
+        engine,
+        FragmentWindow("a", "a", tuple(left)),
+        FragmentWindow("b", "b", tuple(right)),
+    )
+    assert details["geometry_compatibility"] == pytest.approx(
+        exp(-0.5 * reference.discrepancy**2)
+    )
+    assert details["geometry_quality"] == pytest.approx(reference.reliability * 0.8)
+
+
+def test_unique_explicit_route_is_not_replaced_by_mandatory_appearance_at_low_reliability():
+    from src.association.tests.test_reconcile import (
+        route_cameras,
+        route_project,
+        segment,
+    )
+
+    project = route_project()
+    project["motion_model"]["distance_reliability"] = 0.45
+    project["floor_prediction"] = "kalman"
+    source = [
+        replace(o, embedding=None, embedding_model_id=None)
+        for o in segment("cam1", "a", 0)
+    ]
+    target = [
+        replace(o, embedding=None, embedding_model_id=None)
+        for o in segment("cam3", "b", 9)
+    ]
+    engine = AssociationEngine(
+        route_cameras(),
+        AssociationConfig(decision_mode="geometry_ambiguity", tracklet_threshold=0.62),
+        project,
+    )
+    _, tracks = engine.run(source + target)
+    assert len(tracks) == 1
+    edge = next(e for e in engine.fragment_report["edges"] if e["selected"])
+    assert edge["geometry_quality"] < 0.3 and edge["reason"].startswith("route:")
+    assert not edge["appearance_used"]

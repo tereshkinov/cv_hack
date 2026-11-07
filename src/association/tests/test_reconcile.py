@@ -265,3 +265,60 @@ def test_route_geometry_is_not_added_to_floor_evidence_twice():
     )
     assert 0 < adjustment <= 0.09 * reliability
     assert details["reason"] == boundary.reason == "route:route_time_expected"
+
+
+def test_kalman_velocity_informs_offline_route_through_a_corner():
+    config = AssociationConfig(
+        decision_mode="balanced",
+        similarity_threshold=0.95,
+        tracklet_threshold=0.62,
+        adjacency_bonus=0,
+    )
+    project = route_project()
+    project["floor_prediction"] = "kalman"
+    project["coordinate_units"] = "relative"
+    model = project["motion_model"]
+    model["meters_per_unit"] = 2.0
+    model["nodes"] = [
+        {"id": "a", "point": [0, 0]},
+        {"id": "corner", "point": [0, 2]},
+        {"id": "b", "point": [3, 2]},
+    ]
+    model["edges"] = [{"a": "a", "b": "corner"}, {"a": "corner", "b": "b"}]
+    project["cameras"][0]["calibration"] = {
+        "matrix": [[0.01, 0, 0], [0, 0.01, 0], [0, 0, 1]],
+    }
+    source = [
+        replace(row, bbox_xyxy=(70 + i * 50, 20, 130 + i * 50, 200))
+        for i, row in enumerate(segment("cam1", "source", 0))
+    ]
+    target = segment("cam3", "target", 6.1, (0.6, 0.8))
+
+    control = AssociationEngine(
+        route_cameras(), config, project | {"floor_prediction": "heuristic"}
+    )
+    _, baseline_tracks = control.run(source + target)
+    engine = AssociationEngine(route_cameras(), config, project)
+    _, tracks = engine.run(source + target)
+
+    assert len(baseline_tracks) == 2
+    assert len(tracks) == 1
+    details = engine.reconciliation_log[0]["boundary_evidence"]["details"]
+    assert details["path_node_ids"] == ("a", "corner", "b")
+    assert details["distance_m"] == 10
+    assert details["speed_source"] == "observed_boundary_motion"
+    assert details["expected_time_s"] < 6.5
+
+    stopped = [
+        replace(row, local_track_id="stopped", bbox_xyxy=source[0].bbox_xyxy)
+        for row in source
+    ]
+    evidence = engine.boundary_geometry.compare(
+        stopped, target, "sequential_transition"
+    )
+    assert evidence.details["speed_source"] == "population_profile"
+
+    reversed_link = engine.boundary_geometry.compare(
+        target, source, "sequential_transition"
+    )
+    assert reversed_link.reason == "transition_not_configured"

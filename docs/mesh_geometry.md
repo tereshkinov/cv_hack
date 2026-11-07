@@ -45,4 +45,4 @@
 
 Просмотр нового запуска: http://127.0.0.1:8765/review?run=20261107-135217-9f16c0fc
 
-CLI: `.venv/bin/python -m src.association --cameras <cameras.json> --observations <observations.jsonl> --project <project.json> --output-dir <new-directory> --decision-mode geometry --confirm-tracks --timeout-s 60`. Прежние baseline/balanced доступны для сравнения.
+CLI: `.venv/bin/python -m src.association --cameras <cameras.json> --observations <observations.jsonl> --project <project.json> --output-dir <new-directory> --decision-mode geometry_ambiguity --confirm-tracks --timeout-s 60`. Прежние baseline/balanced доступны для сравнения.

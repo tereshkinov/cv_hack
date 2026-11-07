@@ -269,10 +269,10 @@ class BoundaryGeometryMatcher:
     def _route_boundary(self, left, right, mode) -> BoundaryGeometryEvidence:
         speed = None
         speed_reliability = 0.0
-        if self.floor is not None and self.floor.coordinate_units == "meters":
-            motion = self.floor.motion(self.floor.samples(left))
-            speed = motion.speed_coordinate_units_s
-            speed_reliability = motion.reliability
+        if self.floor is not None:
+            speed, speed_reliability = self.floor.route_speed(
+                left, self.route_model.meters_per_unit
+            )
         evidence = self.route_model.transition_evidence(
             left[0].camera_id,
             right[0].camera_id,

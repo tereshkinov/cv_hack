@@ -101,8 +101,10 @@ def test_local_plan_catalog_and_raster_upload(app, monkeypatch):
 def test_camera_editor_save_preserves_latest_retention_setting(app):
     base, path = app
     state = validate_project(default_project())
+    state["floor_prediction"] = "kalman"
     state["motion_model"] = {"provisional": True, "nodes": []}
     state["processing"]["timeout_s"] = 60
+    state["processing"]["association_mode"] = "balanced"
     call(base + "/api/project", state)
     stale = validate_project(default_project())
     stale["processing"]["timeout_s"] = 15
@@ -112,6 +114,8 @@ def test_camera_editor_save_preserves_latest_retention_setting(app):
     assert saved["processing"]["timeout_s"] == 60 and reply["timeout_s"] == 60
     assert saved["walls"] == stale["walls"]
     assert saved["motion_model"] == state["motion_model"]
+    assert saved["floor_prediction"] == "kalman"
+    assert saved["processing"]["association_mode"] == "balanced"
     # Already open editor versions may still POST the old full project.
     request = Request(
         base + "/api/project",
@@ -123,6 +127,18 @@ def test_camera_editor_save_preserves_latest_retention_setting(app):
     # Explicit changes from processing settings remain possible for controlled experiments.
     call(base + "/api/project", stale)
     assert json.loads(path.read_text())["processing"]["timeout_s"] == 15
+    request = Request(
+        base + "/api/project?explicit_import=1",
+        data=json.dumps(stale).encode(),
+        headers={"Content-Type": "application/json", "Referer": base + "/"},
+    )
+    assert urlopen(request).status == 200
+    imported = json.loads(path.read_text())
+    assert (
+        imported["processing"]["association_mode"]
+        == stale["processing"]["association_mode"]
+    )
+    assert imported.get("floor_prediction", "heuristic") == "heuristic"
 
 
 def test_mesh_api_accepts_extra_anchors_and_computes_floor_coverage(app):
@@ -159,3 +175,32 @@ def test_mesh_api_accepts_extra_anchors_and_computes_floor_coverage(app):
     saved = json.loads(call(base + "/api/project")[1])
     assert saved["cameras"][0]["video_points"] == video
     assert saved["cameras"][0]["calibration"]["method"] == "piecewise_affine_floor_mesh"
+
+
+def test_tracking_settings_update_preserves_latest_user_calibration(app):
+    base, path = app
+    state = default_project()
+    state["cameras"] = [
+        {
+            "id": "latest-user-grid",
+            "video_points": [[1, 2], [3, 4]],
+            "calibration": {"marker": "unchanged"},
+        }
+    ]
+    # Settings are a narrow atomic update: they do not reimport/recalculate the grid.
+    path.write_text(json.dumps(state))
+    assert (
+        call(
+            base + "/api/tracking-settings",
+            {"floor_prediction": "kalman", "association_mode": "geometry_ambiguity"},
+        )[0]
+        == 200
+    )
+    updated = json.loads(path.read_text())
+    assert updated["cameras"] == state["cameras"]
+    assert updated["floor_prediction"] == "kalman"
+    assert updated["processing"]["association_mode"] == "geometry_ambiguity"
+    before = path.read_bytes()
+    with pytest.raises(HTTPError):
+        call(base + "/api/tracking-settings", {"floor_prediction": "invalid"})
+    assert path.read_bytes() == before
