@@ -159,3 +159,17 @@ def test_explicit_portal_is_not_replaced_by_inaccurate_floor_gate_fallback():
     e.boundary_geometry = SimpleNamespace(compare=lambda *args: old)
     score, detail = _geometry(e, a, b)
     assert detail["reason"] == "handoff_trajectory_portal" and score > 0.62
+
+
+def test_portal_can_require_longer_motion_before_boosting_short_fragment():
+    e, a, b = example()
+    e.scene_project["handoff_portals"][0]["min_motion_span_s"] = 0.6
+    short = window("two", "b", 2, [(0.52, 0.14 + i * 0.018) for i in range(3)])
+    assert portal_evidence(e, a, short) == (None, None)
+    evidence, detail = portal_evidence(e, a, b)
+    assert evidence is not None and detail["min_motion_span_s"] == 0.6
+    for value in [0.1, 2, True]:
+        invalid = deepcopy(e.scene_project["handoff_portals"])
+        invalid[0]["min_motion_span_s"] = value
+        with pytest.raises(ValueError):
+            validate_portals(invalid, {"a", "b"})

@@ -1,0 +1,1009 @@
+{
+  "control_run": "20261107-194124-d294b993",
+  "result_run": "20261107-194325-a3eb03bc",
+  "all_other_project_fields_equal": true,
+  "unchanged_known_groups": {
+    "f1+f4": [
+      "g1"
+    ],
+    "f21+f46": [
+      "g2"
+    ],
+    "f30+f34": [
+      "g7"
+    ]
+  },
+  "added_selected_edges": [
+    {
+      "left": "f11",
+      "right": "f7",
+      "score": 0.8305128876502234,
+      "threshold": 0.62,
+      "mode": "simultaneous_overlap",
+      "appearance_used": false,
+      "handoff": {
+        "reason": "handoff_trajectory_portal",
+        "portal_id": "cam03_to_cam02_transfer",
+        "evidence_window": "image_transfer_zones",
+        "gap_s": -0.20000000000001705,
+        "expected_gap_s": 0.2,
+        "timing_sigma_s": 1.3,
+        "direction_cosines": [
+          0.9804769380630607,
+          0.8364240537878767
+        ],
+        "source_point": [
+          0.9307068718804254,
+          0.8947406344943576
+        ],
+        "target_point": [
+          0.9537183267098885,
+          0.48826183115013344
+        ],
+        "left_samples": 7,
+        "right_samples": 8,
+        "left_span_s": 1.200000000000017,
+        "right_span_s": 1.4000000000000057,
+        "geometry_quality": 0.4693019914627075,
+        "discrepancy": 0.3206493852340923,
+        "coordinate_units": "normalized_image",
+        "metric_distance_used": false,
+        "lookahead_window_s": 1.5,
+        "min_motion_span_s": 0.6
+      },
+      "geometry_compatibility": 0.949891022500002,
+      "geometry_quality": 0.4693019914627075,
+      "discrepancy": 0.3206493852340923,
+      "reason": "handoff_trajectory_portal",
+      "support_count": 7,
+      "boundary_geometry": {
+        "available": true,
+        "value": 0.21002138493625996,
+        "reliability": 0.75,
+        "support_count": 7,
+        "reason": "floor:simultaneous_overlap",
+        "mode": "simultaneous_overlap",
+        "discrepancy": 1.7666612128076453,
+        "coordinate_units": "relative",
+        "time_delta_s": 0.0,
+        "expected_region": null,
+        "details": {
+          "value_scale": "exp(-0.5 * discrepancy^2), reliability not applied",
+          "legacy_adjustment": -0.0010976663163100057
+        }
+      },
+      "hard_reject": false,
+      "geometry_score": 0.8305128876502234,
+      "policy_reason": "geometry_supported",
+      "selected": true
+    },
+    {
+      "left": "f25",
+      "right": "f18",
+      "score": 0.9058991941356487,
+      "threshold": 0.62,
+      "mode": "sequential_transition",
+      "appearance_used": false,
+      "handoff": {
+        "reason": "handoff_trajectory_portal",
+        "portal_id": "cam04_to_cam03_transfer",
+        "evidence_window": "image_transfer_zones",
+        "gap_s": 2.25,
+        "expected_gap_s": 2.5,
+        "timing_sigma_s": 1.8,
+        "direction_cosines": [
+          0.9571413829282552,
+          0.9749895255495447
+        ],
+        "source_point": [
+          0.9215135456603251,
+          0.8586286379967207
+        ],
+        "target_point": [
+          0.4055402484940894,
+          0.2433352293791594
+        ],
+        "left_samples": 7,
+        "right_samples": 8,
+        "left_span_s": 1.5,
+        "right_span_s": 1.4000000000000057,
+        "geometry_quality": 0.49335772991180415,
+        "discrepancy": 0.14152328050060148,
+        "coordinate_units": "normalized_image",
+        "metric_distance_used": false,
+        "lookahead_window_s": 1.5,
+        "min_motion_span_s": 0.6
+      },
+      "geometry_compatibility": 0.99003555786631,
+      "geometry_quality": 0.49335772991180415,
+      "discrepancy": 0.14152328050060148,
+      "reason": "handoff_trajectory_portal",
+      "support_count": 7,
+      "boundary_geometry": {
+        "available": true,
+        "value": 0.05756905477392553,
+        "reliability": 0.39888466574996595,
+        "support_count": 2,
+        "reason": "route:physically_too_fast",
+        "mode": "sequential_transition",
+        "discrepancy": 2.389464416623747,
+        "coordinate_units": "meters_and_seconds",
+        "time_delta_s": 2.25,
+        "expected_region": {
+          "path_node_ids": [
+            "central_junction",
+            "upper_junction"
+          ],
+          "trajectory": [
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 168.75
+            },
+            {
+              "node_id": "upper_junction",
+              "x_m": 21.518256880733947,
+              "y_m": 8.801009174310375,
+              "distance_m": 16.188030676302574,
+              "expected_timestamp_s": 178.25658110117965
+            }
+          ],
+          "feasible_time_range_s": [
+            6.2252122705210295,
+            37.62606135260515
+          ]
+        },
+        "details": {
+          "available": true,
+          "value": 0.05756905477392553,
+          "reliability": 0.39888466574996595,
+          "support_count": 2,
+          "reason": "physically_too_fast",
+          "source_camera_id": "cam04",
+          "target_camera_id": "cam03",
+          "distance_m": 16.188030676302574,
+          "observed_time_s": 2.25,
+          "expected_time_s": 9.506581101179657,
+          "sigma_time_s": 3.0369069531627613,
+          "residual_time_s": -7.256581101179657,
+          "z_score": 2.389464416623747,
+          "feasible_time_range_s": [
+            6.2252122705210295,
+            37.62606135260515
+          ],
+          "speed_m_s": 1.7028236023036531,
+          "speed_source": "observed_boundary_motion",
+          "path_node_ids": [
+            "central_junction",
+            "upper_junction"
+          ],
+          "predicted_trajectory": [
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 168.75
+            },
+            {
+              "node_id": "upper_junction",
+              "x_m": 21.518256880733947,
+              "y_m": 8.801009174310375,
+              "distance_m": 16.188030676302574,
+              "expected_timestamp_s": 178.25658110117965
+            }
+          ],
+          "details": {
+            "value_scale": "exp(-0.5 * z_score^2), reliability not applied",
+            "scale_source": "user_office_dimensions_2026-11-07",
+            "route_uncertainty_fraction": 0.25,
+            "sync_uncertainty_s": 0.25,
+            "gate_specificity": 1.0,
+            "observed_speed_reliability": 0.7475785962961281
+          }
+        }
+      },
+      "hard_reject": false,
+      "geometry_score": 0.8658991941356486,
+      "policy_reason": "geometry_supported",
+      "joint_handoff": {
+        "selected": true,
+        "assignment_margin": 0.10845618699856607,
+        "packet": 2
+      },
+      "selected": true
+    },
+    {
+      "left": "f31",
+      "right": "f13",
+      "score": 0.7408844525679169,
+      "threshold": 0.62,
+      "mode": "sequential_transition",
+      "appearance_used": true,
+      "handoff": {
+        "reason": "handoff_trajectory_portal",
+        "portal_id": "cam04_to_cam03_transfer",
+        "evidence_window": "image_transfer_zones",
+        "gap_s": 2.700000000000003,
+        "expected_gap_s": 2.5,
+        "timing_sigma_s": 1.8,
+        "direction_cosines": [
+          0.7504945292901523,
+          0.9850826722767898
+        ],
+        "source_point": [
+          0.9638628547574266,
+          0.8252760647746271
+        ],
+        "target_point": [
+          0.41631448416062344,
+          0.24248327247399853
+        ],
+        "left_samples": 7,
+        "right_samples": 8,
+        "left_span_s": 1.5,
+        "right_span_s": 1.3999999999999915,
+        "geometry_quality": 0.3243926167488098,
+        "discrepancy": 0.17631883332902737,
+        "coordinate_units": "normalized_image",
+        "metric_distance_used": false,
+        "lookahead_window_s": 1.5,
+        "min_motion_span_s": 0.6
+      },
+      "geometry_compatibility": 0.9845760215058299,
+      "geometry_quality": 0.3243926167488098,
+      "discrepancy": 0.17631883332902737,
+      "reason": "handoff_trajectory_portal",
+      "support_count": 7,
+      "boundary_geometry": {
+        "available": true,
+        "value": 0.24875070944633798,
+        "reliability": 0.24750000000000003,
+        "support_count": 1,
+        "reason": "route:physically_too_fast",
+        "mode": "sequential_transition",
+        "discrepancy": 1.6681151344568048,
+        "coordinate_units": "meters_and_seconds",
+        "time_delta_s": 2.700000000000003,
+        "expected_region": {
+          "path_node_ids": [
+            "central_junction",
+            "upper_junction"
+          ],
+          "trajectory": [
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 90.5
+            },
+            {
+              "node_id": "upper_junction",
+              "x_m": 21.518256880733947,
+              "y_m": 8.801009174310375,
+              "distance_m": 16.188030676302574,
+              "expected_timestamp_s": 102.4911338342982
+            }
+          ],
+          "feasible_time_range_s": [
+            6.2252122705210295,
+            37.62606135260515
+          ]
+        },
+        "details": {
+          "available": true,
+          "value": 0.24875070944633798,
+          "reliability": 0.24750000000000003,
+          "support_count": 1,
+          "reason": "physically_too_fast",
+          "source_camera_id": "cam04",
+          "target_camera_id": "cam03",
+          "distance_m": 16.188030676302574,
+          "observed_time_s": 2.700000000000003,
+          "expected_time_s": 11.991133834298202,
+          "sigma_time_s": 5.569839660572176,
+          "residual_time_s": -9.291133834298199,
+          "z_score": 1.6681151344568048,
+          "feasible_time_range_s": [
+            6.2252122705210295,
+            37.62606135260515
+          ],
+          "speed_m_s": 1.35,
+          "speed_source": "population_profile",
+          "path_node_ids": [
+            "central_junction",
+            "upper_junction"
+          ],
+          "predicted_trajectory": [
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 90.5
+            },
+            {
+              "node_id": "upper_junction",
+              "x_m": 21.518256880733947,
+              "y_m": 8.801009174310375,
+              "distance_m": 16.188030676302574,
+              "expected_timestamp_s": 102.4911338342982
+            }
+          ],
+          "details": {
+            "value_scale": "exp(-0.5 * z_score^2), reliability not applied",
+            "scale_source": "user_office_dimensions_2026-11-07",
+            "route_uncertainty_fraction": 0.25,
+            "sync_uncertainty_s": 0.25,
+            "gate_specificity": 1.0,
+            "observed_speed_reliability": 0.0
+          }
+        }
+      },
+      "hard_reject": false,
+      "geometry_score": 0.8208844525679169,
+      "policy_reason": "geometry_supported",
+      "joint_handoff": {
+        "selected": false,
+        "assignment_margin": null,
+        "packet": 1
+      },
+      "appearance_attempted": true,
+      "appearance": 0.46404650667358766,
+      "geometry_ambiguous": true,
+      "selected": true
+    },
+    {
+      "left": "f39",
+      "right": "f20",
+      "score": 0.762729904803617,
+      "threshold": 0.62,
+      "mode": "sequential_transition",
+      "appearance_used": true,
+      "handoff": {
+        "reason": "handoff_trajectory_portal",
+        "portal_id": "cam05_to_cam03_transfer",
+        "evidence_window": "image_transfer_zones",
+        "gap_s": 3.0,
+        "expected_gap_s": 3,
+        "timing_sigma_s": 2,
+        "direction_cosines": [
+          0.77915137414126,
+          0.9575449015782156
+        ],
+        "source_point": [
+          0.5037031997869044,
+          0.12232060687532151
+        ],
+        "target_point": [
+          0.36948103963592904,
+          0.2354519690996335
+        ],
+        "left_samples": 8,
+        "right_samples": 8,
+        "left_span_s": 1.3999999999999773,
+        "right_span_s": 1.4000000000000057,
+        "geometry_quality": 0.3919598662853241,
+        "discrepancy": 0.12317859098767583,
+        "coordinate_units": "normalized_image",
+        "metric_distance_used": false,
+        "lookahead_window_s": 1.5,
+        "min_motion_span_s": 0.6
+      },
+      "geometry_compatibility": 0.9924422220853947,
+      "geometry_quality": 0.3919598662853241,
+      "discrepancy": 0.12317859098767583,
+      "reason": "handoff_trajectory_portal",
+      "support_count": 8,
+      "boundary_geometry": {
+        "available": true,
+        "value": 0.01912057868750534,
+        "reliability": 0.3914495905178832,
+        "support_count": 2,
+        "reason": "route:physically_too_fast",
+        "mode": "sequential_transition",
+        "discrepancy": 2.8131797332321216,
+        "coordinate_units": "meters_and_seconds",
+        "time_delta_s": 3.0,
+        "expected_region": {
+          "path_node_ids": [
+            "lower_junction",
+            "central_junction",
+            "upper_junction"
+          ],
+          "trajectory": [
+            {
+              "node_id": "lower_junction",
+              "x_m": 21.012935779816512,
+              "y_m": 37.77275229357132,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 167.2
+            },
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 12.863650880688843,
+              "expected_timestamp_s": 176.38426643665468
+            },
+            {
+              "node_id": "upper_junction",
+              "x_m": 21.518256880733947,
+              "y_m": 8.801009174310375,
+              "distance_m": 29.05168155699142,
+              "expected_timestamp_s": 187.94204176769205
+            }
+          ],
+          "feasible_time_range_s": [
+            11.370672622796567,
+            63.35336311398284
+          ]
+        },
+        "details": {
+          "available": true,
+          "value": 0.01912057868750534,
+          "reliability": 0.3914495905178832,
+          "support_count": 2,
+          "reason": "physically_too_fast",
+          "source_camera_id": "cam05",
+          "target_camera_id": "cam03",
+          "distance_m": 29.05168155699142,
+          "observed_time_s": 3.0,
+          "expected_time_s": 20.74204176769205,
+          "sigma_time_s": 6.306757281842012,
+          "residual_time_s": -17.74204176769205,
+          "z_score": 2.8131797332321216,
+          "feasible_time_range_s": [
+            11.370672622796567,
+            63.35336311398284
+          ],
+          "speed_m_s": 1.4006182169704489,
+          "speed_source": "observed_boundary_motion",
+          "path_node_ids": [
+            "lower_junction",
+            "central_junction",
+            "upper_junction"
+          ],
+          "predicted_trajectory": [
+            {
+              "node_id": "lower_junction",
+              "x_m": 21.012935779816512,
+              "y_m": 37.77275229357132,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 167.2
+            },
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 12.863650880688843,
+              "expected_timestamp_s": 176.38426643665468
+            },
+            {
+              "node_id": "upper_junction",
+              "x_m": 21.518256880733947,
+              "y_m": 8.801009174310375,
+              "distance_m": 29.05168155699142,
+              "expected_timestamp_s": 187.94204176769205
+            }
+          ],
+          "details": {
+            "value_scale": "exp(-0.5 * z_score^2), reliability not applied",
+            "scale_source": "user_office_dimensions_2026-11-07",
+            "route_uncertainty_fraction": 0.25,
+            "sync_uncertainty_s": 0.25,
+            "gate_specificity": 1.0,
+            "observed_speed_reliability": 0.710862175396954
+          }
+        }
+      },
+      "hard_reject": false,
+      "geometry_score": 0.842729904803617,
+      "policy_reason": "geometry_supported",
+      "appearance_attempted": true,
+      "appearance": 0.5124366163785548,
+      "geometry_ambiguous": true,
+      "selected": true
+    },
+    {
+      "left": "f43",
+      "right": "f26",
+      "score": 0.709696638157855,
+      "threshold": 0.62,
+      "mode": "sequential_transition",
+      "appearance_used": true,
+      "handoff": {
+        "reason": "handoff_trajectory_transition",
+        "left_samples": 4,
+        "right_samples": 7,
+        "lookahead_window_s": 1.5,
+        "appearance_used": false,
+        "direction_cosine": 0.8033520072320214,
+        "left_velocity": [
+          -0.030058957576425533,
+          -0.40081050253982187
+        ],
+        "right_velocity": [
+          0.12510850098753323,
+          -0.19821054366056856
+        ],
+        "metric_scale": {
+          "meters_per_unit": 4.2110091743119265,
+          "uncertainty_fraction": 0.15,
+          "approximate": true,
+          "source": "user_office_dimensions_2026-11-07"
+        },
+        "route_tangent_cosines": [
+          0.9850347138950379,
+          0.893968417410708
+        ],
+        "route_reason": "route:route_time_expected",
+        "discrepancy": 0.18166793507622087,
+        "geometry_quality": 0.24750000000000003
+      },
+      "geometry_compatibility": 0.9836337865740484,
+      "geometry_quality": 0.19800000000000004,
+      "discrepancy": 0.18166793507622087,
+      "reason": "handoff_trajectory_transition",
+      "support_count": 4,
+      "boundary_geometry": {
+        "available": true,
+        "value": 0.9836337865740484,
+        "reliability": 0.24750000000000003,
+        "support_count": 1,
+        "reason": "route:route_time_expected",
+        "mode": "sequential_transition",
+        "discrepancy": 0.18166793507622087,
+        "coordinate_units": "meters_and_seconds",
+        "time_delta_s": 10.349999999999994,
+        "expected_region": {
+          "path_node_ids": [
+            "lower_junction",
+            "central_junction"
+          ],
+          "trajectory": [
+            {
+              "node_id": "lower_junction",
+              "x_m": 21.012935779816512,
+              "y_m": 37.77275229357132,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 166.4
+            },
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 12.863650880688843,
+              "expected_timestamp_s": 175.92863028199173
+            }
+          ],
+          "feasible_time_range_s": [
+            4.895460352275537,
+            30.977301761377685
+          ]
+        },
+        "details": {
+          "available": true,
+          "value": 0.9836337865740484,
+          "reliability": 0.24750000000000003,
+          "support_count": 1,
+          "reason": "route_time_expected",
+          "source_camera_id": "cam05",
+          "target_camera_id": "cam04",
+          "distance_m": 12.863650880688843,
+          "observed_time_s": 10.349999999999994,
+          "expected_time_s": 9.528630281991735,
+          "sigma_time_s": 4.521269632220153,
+          "residual_time_s": 0.8213697180082598,
+          "z_score": 0.18166793507622087,
+          "feasible_time_range_s": [
+            4.895460352275537,
+            30.977301761377685
+          ],
+          "speed_m_s": 1.35,
+          "speed_source": "population_profile",
+          "path_node_ids": [
+            "lower_junction",
+            "central_junction"
+          ],
+          "predicted_trajectory": [
+            {
+              "node_id": "lower_junction",
+              "x_m": 21.012935779816512,
+              "y_m": 37.77275229357132,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 166.4
+            },
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 12.863650880688843,
+              "expected_timestamp_s": 175.92863028199173
+            }
+          ],
+          "details": {
+            "value_scale": "exp(-0.5 * z_score^2), reliability not applied",
+            "scale_source": "user_office_dimensions_2026-11-07",
+            "route_uncertainty_fraction": 0.25,
+            "sync_uncertainty_s": 0.25,
+            "gate_specificity": 1.0,
+            "observed_speed_reliability": 0.0
+          }
+        }
+      },
+      "calibration_validation": {
+        "cam05": {
+          "count": 0,
+          "usable": 0,
+          "outside_coverage": 0,
+          "rmse_plan_units": null,
+          "max_error_plan_units": null
+        },
+        "cam04": {
+          "count": 0,
+          "usable": 0,
+          "outside_coverage": 0,
+          "rmse_plan_units": null,
+          "max_error_plan_units": null
+        }
+      },
+      "hard_reject": false,
+      "geometry_score": 0.789696638157855,
+      "policy_reason": "geometry_supported",
+      "appearance_attempted": true,
+      "appearance": 0.3950042221717574,
+      "geometry_ambiguous": true,
+      "selected": true
+    }
+  ],
+  "removed_selected_edges": [
+    {
+      "left": "f25",
+      "right": "f10",
+      "score": 0.7175325190363235,
+      "threshold": 0.62,
+      "mode": "sequential_transition",
+      "appearance_used": true,
+      "handoff": {
+        "reason": "handoff_trajectory_transition",
+        "left_samples": 7,
+        "right_samples": 8,
+        "lookahead_window_s": 1.5,
+        "appearance_used": false,
+        "direction_cosine": 0.9757703386956126,
+        "left_velocity": [
+          -0.045443961457160675,
+          -0.4542845989082493
+        ],
+        "right_velocity": [
+          -0.15814686669542774,
+          -0.4767699314785122
+        ],
+        "metric_scale": {
+          "meters_per_unit": 4.2110091743119265,
+          "uncertainty_fraction": 0.15,
+          "approximate": true,
+          "source": "user_office_dimensions_2026-11-07"
+        },
+        "projected_route": {
+          "distance_m": 7.818580010267241,
+          "graph_distance_m": 5.600647319916108,
+          "source_snap_m": 1.4851115020182524,
+          "target_snap_m": 0.73282118833288,
+          "node_ids": [],
+          "points_m": [
+            [
+              22.06000121318218,
+              20.35822159987065
+            ],
+            [
+              21.797758820070097,
+              14.763717213480525
+            ]
+          ],
+          "first_vector": [
+            -0.2622423931120821,
+            -5.594504386390124
+          ],
+          "last_vector": [
+            -0.2622423931120821,
+            -5.594504386390124
+          ]
+        },
+        "expected_travel_s": 4.066787960029069,
+        "travel_sigma_s": 1.5,
+        "route_tangent_cosines": [
+          0.9986031443562967,
+          0.9628467131070275
+        ],
+        "route_reason": "observed_floor_endpoints",
+        "discrepancy": 0.34442827199612486,
+        "geometry_quality": 0.39888466574996595
+      },
+      "geometry_compatibility": 0.9424094700458393,
+      "geometry_quality": 0.31910773259997277,
+      "discrepancy": 0.34442827199612486,
+      "reason": "handoff_trajectory_transition",
+      "support_count": 7,
+      "boundary_geometry": {
+        "available": true,
+        "value": 0.6425023835830178,
+        "reliability": 0.39888466574996595,
+        "support_count": 2,
+        "reason": "route:route_time_expected",
+        "mode": "sequential_transition",
+        "discrepancy": 0.9406218712775145,
+        "coordinate_units": "meters_and_seconds",
+        "time_delta_s": 6.650000000000006,
+        "expected_region": {
+          "path_node_ids": [
+            "central_junction",
+            "upper_junction"
+          ],
+          "trajectory": [
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 168.75
+            },
+            {
+              "node_id": "upper_junction",
+              "x_m": 21.518256880733947,
+              "y_m": 8.801009174310375,
+              "distance_m": 16.188030676302574,
+              "expected_timestamp_s": 178.25658110117965
+            }
+          ],
+          "feasible_time_range_s": [
+            6.2252122705210295,
+            37.62606135260515
+          ]
+        },
+        "details": {
+          "available": true,
+          "value": 0.6425023835830178,
+          "reliability": 0.39888466574996595,
+          "support_count": 2,
+          "reason": "route_time_expected",
+          "source_camera_id": "cam04",
+          "target_camera_id": "cam03",
+          "distance_m": 16.188030676302574,
+          "observed_time_s": 6.650000000000006,
+          "expected_time_s": 9.506581101179657,
+          "sigma_time_s": 3.0369069531627613,
+          "residual_time_s": -2.8565811011796516,
+          "z_score": 0.9406218712775145,
+          "feasible_time_range_s": [
+            6.2252122705210295,
+            37.62606135260515
+          ],
+          "speed_m_s": 1.7028236023036531,
+          "speed_source": "observed_boundary_motion",
+          "path_node_ids": [
+            "central_junction",
+            "upper_junction"
+          ],
+          "predicted_trajectory": [
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 168.75
+            },
+            {
+              "node_id": "upper_junction",
+              "x_m": 21.518256880733947,
+              "y_m": 8.801009174310375,
+              "distance_m": 16.188030676302574,
+              "expected_timestamp_s": 178.25658110117965
+            }
+          ],
+          "details": {
+            "value_scale": "exp(-0.5 * z_score^2), reliability not applied",
+            "scale_source": "user_office_dimensions_2026-11-07",
+            "route_uncertainty_fraction": 0.25,
+            "sync_uncertainty_s": 0.25,
+            "gate_specificity": 1.0,
+            "observed_speed_reliability": 0.7475785962961281
+          }
+        }
+      },
+      "calibration_validation": {
+        "cam04": {
+          "count": 0,
+          "usable": 0,
+          "outside_coverage": 0,
+          "rmse_plan_units": null,
+          "max_error_plan_units": null
+        },
+        "cam03": {
+          "count": 0,
+          "usable": 0,
+          "outside_coverage": 0,
+          "rmse_plan_units": null,
+          "max_error_plan_units": null
+        }
+      },
+      "hard_reject": false,
+      "geometry_score": 0.7917928764564612,
+      "policy_reason": "geometry_supported",
+      "joint_handoff": {
+        "selected": false,
+        "assignment_margin": null,
+        "packet": 3
+      },
+      "appearance_attempted": true,
+      "appearance": 0.5514792851597246,
+      "geometry_ambiguous": true,
+      "selected": true
+    },
+    {
+      "left": "f39",
+      "right": "f26",
+      "score": 0.7437585975272224,
+      "threshold": 0.62,
+      "mode": "sequential_transition",
+      "appearance_used": true,
+      "handoff": {
+        "reason": "handoff_trajectory_transition",
+        "left_samples": 5,
+        "right_samples": 7,
+        "lookahead_window_s": 1.5,
+        "appearance_used": false,
+        "direction_cosine": 0.5475563252744201,
+        "left_velocity": [
+          -0.08570376148365502,
+          -0.18770572653942408
+        ],
+        "right_velocity": [
+          0.12510850098753323,
+          -0.19821054366056856
+        ],
+        "metric_scale": {
+          "meters_per_unit": 4.2110091743119265,
+          "uncertainty_fraction": 0.15,
+          "approximate": true,
+          "source": "user_office_dimensions_2026-11-07"
+        },
+        "route_tangent_cosines": [
+          0.8644792498558853,
+          0.893968417410708
+        ],
+        "route_reason": "route:route_time_expected",
+        "discrepancy": 0.11768878926817057,
+        "geometry_quality": 0.3914495905178832
+      },
+      "geometry_compatibility": 0.9930985992464676,
+      "geometry_quality": 0.3131596724143066,
+      "discrepancy": 0.11768878926817057,
+      "reason": "handoff_trajectory_transition",
+      "support_count": 5,
+      "boundary_geometry": {
+        "available": true,
+        "value": 0.9930985992464676,
+        "reliability": 0.3914495905178832,
+        "support_count": 2,
+        "reason": "route:route_time_expected",
+        "mode": "sequential_transition",
+        "discrepancy": 0.11768878926817057,
+        "coordinate_units": "meters_and_seconds",
+        "time_delta_s": 9.550000000000011,
+        "expected_region": {
+          "path_node_ids": [
+            "lower_junction",
+            "central_junction"
+          ],
+          "trajectory": [
+            {
+              "node_id": "lower_junction",
+              "x_m": 21.012935779816512,
+              "y_m": 37.77275229357132,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 167.2
+            },
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 12.863650880688843,
+              "expected_timestamp_s": 176.38426643665468
+            }
+          ],
+          "feasible_time_range_s": [
+            4.895460352275537,
+            30.977301761377685
+          ]
+        },
+        "details": {
+          "available": true,
+          "value": 0.9930985992464676,
+          "reliability": 0.3914495905178832,
+          "support_count": 2,
+          "reason": "route_time_expected",
+          "source_camera_id": "cam05",
+          "target_camera_id": "cam04",
+          "distance_m": 12.863650880688843,
+          "observed_time_s": 9.550000000000011,
+          "expected_time_s": 9.184266436654699,
+          "sigma_time_s": 3.1076329837325165,
+          "residual_time_s": 0.36573356334531226,
+          "z_score": 0.11768878926817057,
+          "feasible_time_range_s": [
+            4.895460352275537,
+            30.977301761377685
+          ],
+          "speed_m_s": 1.4006182169704489,
+          "speed_source": "observed_boundary_motion",
+          "path_node_ids": [
+            "lower_junction",
+            "central_junction"
+          ],
+          "predicted_trajectory": [
+            {
+              "node_id": "lower_junction",
+              "x_m": 21.012935779816512,
+              "y_m": 37.77275229357132,
+              "distance_m": 0.0,
+              "expected_timestamp_s": 167.2
+            },
+            {
+              "node_id": "central_junction",
+              "x_m": 22.276238532110092,
+              "y_m": 24.971284403665326,
+              "distance_m": 12.863650880688843,
+              "expected_timestamp_s": 176.38426643665468
+            }
+          ],
+          "details": {
+            "value_scale": "exp(-0.5 * z_score^2), reliability not applied",
+            "scale_source": "user_office_dimensions_2026-11-07",
+            "route_uncertainty_fraction": 0.25,
+            "sync_uncertainty_s": 0.25,
+            "gate_specificity": 1.0,
+            "observed_speed_reliability": 0.710862175396954
+          }
+        }
+      },
+      "calibration_validation": {
+        "cam05": {
+          "count": 0,
+          "usable": 0,
+          "outside_coverage": 0,
+          "rmse_plan_units": null,
+          "max_error_plan_units": null
+        },
+        "cam04": {
+          "count": 0,
+          "usable": 0,
+          "outside_coverage": 0,
+          "rmse_plan_units": null,
+          "max_error_plan_units": null
+        }
+      },
+      "hard_reject": false,
+      "geometry_score": 0.8237585975272224,
+      "policy_reason": "geometry_supported",
+      "appearance_attempted": true,
+      "appearance": 0.3888856817803906,
+      "geometry_ambiguous": true,
+      "selected": true
+    }
+  ],
+  "portal_counts": [
+    2,
+    12
+  ],
+  "manual_identity_validation": "partial; new associations and reverse directions require human review",
+  "tests_passed": 257,
+  "observation_sha256": {
+    "20261107-194124-d294b993": "66b5350eb21ad9fcb025c286ab3bcd06f6c31753b7046d1dfaf8e80cf16bbe34",
+    "20261107-194325-a3eb03bc": "66b5350eb21ad9fcb025c286ab3bcd06f6c31753b7046d1dfaf8e80cf16bbe34"
+  }
+}

@@ -56,6 +56,7 @@ def validate_portals(values, camera_ids):
             ("expected_gap_s", 1.5, 0, 30),
             ("timing_sigma_s", 1.2, 0.1, 10),
             ("reliability", 0.7, 0.1, 0.85),
+            ("min_motion_span_s", 0.4, 0.4, 1.5),
         ]:
             x = portal.get(key, default)
             if (
@@ -147,6 +148,9 @@ def portal_evidence(engine, a, b):
         right = _motion(b.head(1.5), engine.cameras[b.camera_id], "head")
         if not left or not right:
             continue
+        minimum_span = portal.get("min_motion_span_s", 0.4)
+        if min(left["span"], right["span"]) < minimum_span - 1e-8:
+            continue
         fits = []
         for motion, polygon, direction in [
             (left, portal["source_polygon"], portal["source_direction"]),
@@ -202,6 +206,7 @@ def portal_evidence(engine, a, b):
             "coordinate_units": "normalized_image",
             "metric_distance_used": False,
             "lookahead_window_s": 1.5,
+            "min_motion_span_s": minimum_span,
         }
         candidates.append(
             (
