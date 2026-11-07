@@ -200,6 +200,7 @@ class AssociationConfig:
     confirmation_window_s: float = 1.0
     boundary_window_s: float = 2.0
     fragment_beam_width: int = 24
+    geometry_visual_weight: float = 0.08
     transition_overlap_tolerance_s: float = 0.75
 
     def __post_init__(self) -> None:
@@ -226,8 +227,28 @@ class AssociationConfig:
                 raise ValueError(f"{name} must be finite and positive")
         if self.confirmation_min_span_s > self.confirmation_window_s:
             raise ValueError("confirmation span must fit the window")
-        if self.decision_mode not in {"baseline", "balanced"}:
-            raise ValueError("decision_mode must be baseline or balanced")
+        if self.decision_mode not in {
+            "baseline",
+            "balanced",
+            "geometry",
+            "geometry_visual",
+        }:
+            raise ValueError(
+                "decision_mode must be baseline, balanced, geometry or geometry_visual"
+            )
+        if (
+            self.decision_mode in {"geometry", "geometry_visual"}
+            and self.fragment_mode != "rebuild"
+        ):
+            raise ValueError(
+                "geometry decision modes require fragment_mode=rebuild so provisional "
+                "appearance IDs cannot leak into the final partition"
+            )
+        if (
+            not isfinite(self.geometry_visual_weight)
+            or not 0 <= self.geometry_visual_weight <= 0.2
+        ):
+            raise ValueError("geometry_visual_weight must be in [0, 0.2]")
         if not isfinite(self.adjacency_bonus) or not 0 <= self.adjacency_bonus <= 0.15:
             raise ValueError("adjacency_bonus must be in [0, 0.15]")
         if (

@@ -68,29 +68,34 @@ def fragments_from_observations(observations, config, exits):
                     previous.bbox_xyxy, o.bbox_xyxy, gap
                 ):
                     future = rows[i + 1]
-                    # Require both a sustained box jump and independent appearance support.
-                    old = [x for x in current[-10:] if x.embedding is not None]
-                    new = [x for x in rows[i : i + 5] if x.embedding is not None]
-                    spaces = {
-                        (x.embedding_model_id, len(x.embedding)) for x in old + new
-                    }
-                    if (
-                        len(old) >= 2
-                        and len(new) >= 2
-                        and len(spaces) == 1
-                        and not plausible_recovery(
-                            previous.bbox_xyxy,
-                            future.bbox_xyxy,
-                            future.timestamp_s - previous.timestamp_s,
-                        )
-                    ):
-                        similarity = median(
-                            _cosine_similarity(a.embedding, b.embedding)
-                            for a in old[-2:]
-                            for b in new[:2]
-                        )
-                        if similarity < 0.4:
-                            split = "sustained_motion_and_appearance_jump"
+                    sustained_jump = not plausible_recovery(
+                        previous.bbox_xyxy,
+                        future.bbox_xyxy,
+                        future.timestamp_s - previous.timestamp_s,
+                    )
+                    if sustained_jump and config.decision_mode in {
+                        "geometry",
+                        "geometry_visual",
+                    }:
+                        # Keep both geometry experiments independent of embeddings.
+                        # The graph may later reconnect the pieces using boundary geometry.
+                        split = "sustained_motion_jump"
+                    elif sustained_jump:
+                        # Appearance modes require an independent visual signal before
+                        # interpreting an image-space discontinuity as ID contamination.
+                        old = [x for x in current[-10:] if x.embedding is not None]
+                        new = [x for x in rows[i : i + 5] if x.embedding is not None]
+                        spaces = {
+                            (x.embedding_model_id, len(x.embedding)) for x in old + new
+                        }
+                        if len(old) >= 2 and len(new) >= 2 and len(spaces) == 1:
+                            similarity = median(
+                                _cosine_similarity(a.embedding, b.embedding)
+                                for a in old[-2:]
+                                for b in new[:2]
+                            )
+                            if similarity < 0.4:
+                                split = "sustained_motion_and_appearance_jump"
             if split:
                 chunks.append((current, reason))
                 current = []
@@ -173,6 +178,63 @@ def boundary_evidence(engine, left, right):
         ga = _gallery(left.tail(4), cfg.min_embedding_confidence)
     if not gb and overlap < 0:
         gb = _gallery(right.head(4), cfg.min_embedding_confidence)
+    if cfg.decision_mode in {"geometry", "geometry_visual"}:
+        from .geometry_policy import decide_geometry
+
+        appearance = None
+        aq = 0.0
+        if (
+            cfg.decision_mode == "geometry_visual"
+            and ga
+            and gb
+            and len({(o.embedding_model_id, len(o.embedding)) for o in ga + gb}) == 1
+        ):
+            matrix = [
+                [_cosine_similarity(x.embedding, y.embedding) for y in gb] for x in ga
+            ]
+            appearance = fmean(
+                [
+                    median(max(row) for row in matrix),
+                    median(max(row[j] for row in matrix) for j in range(len(gb))),
+                ]
+            )
+            aq = min(
+                median(appearance_quality(o, engine.cameras[o.camera_id]) for o in g)
+                for g in [ga, gb]
+            )
+        _, _, spatial_details, boundary = boundary_spatial_input(engine, a, b, mode)
+        threshold = (
+            cfg.tracklet_threshold
+            if cfg.tracklet_threshold is not None
+            else cfg.similarity_threshold
+        )
+        decision = decide_geometry(
+            boundary,
+            threshold,
+            appearance=appearance,
+            appearance_reliability=aq,
+            visual_confirmation_weight=(
+                cfg.geometry_visual_weight
+                if cfg.decision_mode == "geometry_visual"
+                else 0.0
+            ),
+        )
+        if decision.score is None:
+            return None, {
+                "mode": mode,
+                "reason": decision.reason,
+                "boundary_geometry": boundary.as_dict() if boundary else None,
+                "spatial_details": spatial_details,
+                **decision.export(),
+            }
+        return decision.score, {
+            "mode": mode,
+            "reason": decision.reason,
+            "support_count": boundary.support_count if boundary else 0,
+            "boundary_geometry": boundary.as_dict() if boundary else None,
+            "spatial_details": spatial_details,
+            **decision.export(),
+        }
     if not ga or not gb:
         return None, {"reason": "missing_appearance", "mode": mode}
     if len({(o.embedding_model_id, len(o.embedding)) for o in ga + gb}) != 1:
@@ -291,20 +353,50 @@ def rebuild_fragments(engine, observations, assignments, tracks, exits):
                 continue
             score, details = provider(a, b)
             if score is None:
+                if overlap and cfg.decision_mode in {"geometry", "geometry_visual"}:
+                    # A simultaneous multi-camera bundle needs direct spatial
+                    # support. It must not be created transitively through a
+                    # later fragment when overlap geometry is unavailable.
+                    forbidden.add((i, j))
+                    constraint_log.append(
+                        {
+                            "left": a.fragment_id,
+                            "right": b.fragment_id,
+                            "reason": "simultaneous_geometry_unavailable",
+                        }
+                    )
                 continue
             if (
-                details.get("reason") == "spatial_contradiction"
-                and details.get("geometry_quality", 0) >= 0.6
+                details.get("hard_reject")
+                or (
+                    details.get("reason") == "spatial_contradiction"
+                    and details.get("geometry_quality", 0) >= 0.6
+                )
             ):
                 forbidden.add((i, j))
                 constraint_log.append(
                     {
                         "left": a.fragment_id,
                         "right": b.fragment_id,
-                        "reason": "reliable_spatial_contradiction",
+                        "reason": "geometry_physical_contradiction"
+                        if details.get("hard_reject")
+                        else "reliable_spatial_contradiction",
                     }
                 )
                 continue
+            if (
+                overlap
+                and cfg.decision_mode in {"geometry", "geometry_visual"}
+                and score < threshold
+            ):
+                forbidden.add((i, j))
+                constraint_log.append(
+                    {
+                        "left": a.fragment_id,
+                        "right": b.fragment_id,
+                        "reason": "simultaneous_geometry_not_supported",
+                    }
+                )
             weights[(i, j)] = score - threshold
             evidence_log.append(
                 {

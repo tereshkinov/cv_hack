@@ -26,7 +26,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--no-geolocation", action="store_true")
     parser.add_argument(
-        "--decision-mode", choices=["baseline", "balanced"], default="baseline"
+        "--decision-mode",
+        choices=["baseline", "balanced", "geometry", "geometry_visual"],
+        default="baseline",
     )
     parser.add_argument(
         "--fragment-mode", choices=["off", "boundary", "rebuild"], default="off"
@@ -37,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--confirmation-window-s", type=float, default=1.0)
     parser.add_argument("--boundary-window-s", type=float, default=2.0)
     parser.add_argument("--fragment-beam-width", type=int, default=24)
+    parser.add_argument("--geometry-visual-weight", type=float, default=0.08)
     parser.add_argument("--timeout-s", type=float, default=60.0)
     parser.add_argument("--similarity-threshold", type=float, default=0.75)
     parser.add_argument("--ambiguity-margin", type=float, default=0.05)
@@ -62,6 +65,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         confirmation_window_s=args.confirmation_window_s,
         boundary_window_s=args.boundary_window_s,
         fragment_beam_width=args.fragment_beam_width,
+        geometry_visual_weight=args.geometry_visual_weight,
         timeout_s=args.timeout_s,
         adjacency_bonus=args.adjacency_bonus,
         similarity_threshold=args.similarity_threshold,
@@ -89,6 +93,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dumps(
             {
                 "decision_mode": config.decision_mode,
+                "geometry_visual_weight": config.geometry_visual_weight,
                 "confirmation": engine.confirmation_report,
                 "fragment_graph": {
                     k: v
