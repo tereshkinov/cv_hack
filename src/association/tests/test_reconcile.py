@@ -80,6 +80,33 @@ def test_offline_correction_respects_direction_and_feature_space():
         segment("cam3", "a", 0) + delayed_target("cam1")
     )
     assert len(tracks) == 2
+
+
+def test_small_transition_overlap_tolerates_clock_and_tracker_tail_only():
+    source = segment("cam1", "source", 0)
+    slightly_overlapping = delayed_target("cam3", start=0.8)
+
+    _, strict = AssociationEngine(
+        cameras(), AssociationConfig(transition_overlap_tolerance_s=0)
+    ).run(source + slightly_overlapping)
+    _, tolerant = AssociationEngine(
+        cameras(), AssociationConfig(transition_overlap_tolerance_s=0.25)
+    ).run(source + slightly_overlapping)
+
+    assert len(strict) == 2
+    assert len(tolerant) == 1
+
+    long_overlap = delayed_target("cam3", start=0.2)
+    _, tracks = AssociationEngine(
+        cameras(), AssociationConfig(transition_overlap_tolerance_s=0.25)
+    ).run(source + long_overlap)
+    assert len(tracks) == 2
+
+    reverse = delayed_target("cam1", start=0.8)
+    _, tracks = AssociationEngine(
+        cameras(), AssociationConfig(transition_overlap_tolerance_s=0.25)
+    ).run(segment("cam3", "source", 0) + reverse)
+    assert len(tracks) == 2
     _, tracks = AssociationEngine(cameras()).run(
         segment("cam1", "a", 0) + delayed_target(model="other")
     )

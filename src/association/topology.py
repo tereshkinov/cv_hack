@@ -12,12 +12,15 @@ class CameraGraph:
                 self.overlaps[cid].add(other)
                 self.overlaps[other].add(cid)
 
-    def relation(self, source, target, gap_s):
+    def relation(self, source, target, gap_s, transition_overlap_tolerance_s=0.0):
         if source == target:
             return "same_camera" if gap_s > 0 else None
         if target in self.overlaps[source]:
             return "overlap"
-        if gap_s > 0 and target in self.transitions[source]:
+        if (
+            gap_s > -transition_overlap_tolerance_s
+            and target in self.transitions[source]
+        ):
             return "transition"
         # Reachability alone is insufficient evidence: never infer an overlap or teleport.
         return None

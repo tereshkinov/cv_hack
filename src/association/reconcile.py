@@ -98,10 +98,20 @@ def reconcile(engine, observations, assignments, tracks, exits):
                         relation = "same_camera"
                 elif cb in engine._overlaps[ca]:
                     relation = "overlap"
-                elif aend < bst:
-                    relation = engine.graph.relation(ca, cb, bst - aend)
-                elif bend < ast:
-                    relation = engine.graph.relation(cb, ca, ast - bend)
+                elif ast < bst and bst - aend > -config.transition_overlap_tolerance_s:
+                    relation = engine.graph.relation(
+                        ca,
+                        cb,
+                        bst - aend,
+                        config.transition_overlap_tolerance_s,
+                    )
+                elif bst < ast and ast - bend > -config.transition_overlap_tolerance_s:
+                    relation = engine.graph.relation(
+                        cb,
+                        ca,
+                        ast - bend,
+                        config.transition_overlap_tolerance_s,
+                    )
                 if relation is None:
                     continue
                 ga, gb = gallery(a), gallery(b)
@@ -190,7 +200,7 @@ def reconcile(engine, observations, assignments, tracks, exits):
                 "score": round(score, 8),
                 "threshold": threshold,
                 "reason": "offline_multiframe_reid_floor"
-                if engine.floor
+                if engine.floor and engine.floor.calibrations
                 else "offline_multiframe_reid",
             }
         )
