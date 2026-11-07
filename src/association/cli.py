@@ -81,6 +81,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     else [],
                     "statistics": dict(engine.floor.stats) if engine.floor else {},
                 },
+                "motion_model": {
+                    "enabled": engine.route_model is not None,
+                    "scale_source": engine.route_model.scale_source
+                    if engine.route_model
+                    else None,
+                    "meters_per_unit": engine.route_model.meters_per_unit
+                    if engine.route_model
+                    else None,
+                },
             },
             indent=2,
         )

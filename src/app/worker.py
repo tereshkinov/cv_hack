@@ -73,15 +73,20 @@ def execute(folder):
                 f"# Проекция готовых треков\nИсточник: {source.name}.\nНейросети не запускались. Режим: {spec['kind']}. Треков: {len(result['tracks'])}. Калибровано камер: {sum(c['calibrated'] for c in result['cameras'])}. Единицы: {result['coordinate_units']}.\n"
             )
             calibrated_count = sum(c["calibrated"] for c in result["cameras"])
+            motion_enabled = bool(project.get("motion_model"))
             update(
                 folder,
                 "done",
                 (
                     f"Готово: {len(result['tracks'])} треков; "
                     + (
-                        "ID пересчитаны с геометрией пола"
+                        "ID пересчитаны с геометрией пола и моделью маршрута"
                         if calibrated_count
-                        else "ID пересчитаны по внешности и графу камер"
+                        else (
+                            "ID пересчитаны по внешности, графу камер и модели маршрута"
+                            if motion_enabled
+                            else "ID пересчитаны по внешности и графу камер"
+                        )
                     )
                 )
                 if spec["kind"] == "reassociate"

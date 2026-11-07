@@ -10,6 +10,41 @@
     "opacity": 0.9
   },
   "walls": [],
+  "motion_model": {
+    "label": "Предварительный граф проходов; масштаб требует контрольного измерения",
+    "provisional": true,
+    "meters_per_unit": 0.2,
+    "nodes": [
+      {"id": "cam1_gate", "point": [36.9, 20.9]},
+      {"id": "cam2_gate", "point": [25.8, 32.3]},
+      {"id": "upper_junction", "point": [51.1, 20.9]},
+      {"id": "central_junction", "point": [52.9, 59.3]},
+      {"id": "lower_junction", "point": [49.9, 89.7]}
+    ],
+    "edges": [
+      {"a": "cam1_gate", "b": "upper_junction", "bidirectional": true},
+      {"a": "cam2_gate", "b": "upper_junction", "bidirectional": true},
+      {"a": "upper_junction", "b": "central_junction", "bidirectional": true},
+      {"a": "central_junction", "b": "lower_junction", "bidirectional": true}
+    ],
+    "camera_gates": {
+      "cam1": {"both": ["cam1_gate"]},
+      "cam2": {"both": ["cam2_gate"]},
+      "cam3": {"both": ["upper_junction"]},
+      "cam4": {"both": ["central_junction"]},
+      "cam5": {"both": ["lower_junction"]}
+    },
+    "walking_speed_m_s": {
+      "min": 0.5,
+      "typical": 1.35,
+      "max": 2.5,
+      "sigma": 0.5
+    },
+    "timing_sigma_s": 1.5,
+    "route_uncertainty_fraction": 0.25,
+    "max_dwell_s": 5,
+    "distance_reliability": 0.45
+  },
   "cameras": [
     {
       "id": "cam1",
