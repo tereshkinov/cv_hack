@@ -239,3 +239,70 @@ def test_output_is_deterministic_for_unsorted_input() -> None:
     second = AssociationEngine(cameras()).run(reversed(ordered))
 
     assert first == second
+
+
+def test_same_camera_recovers_after_occlusion_but_not_after_fifteen_seconds():
+    cfg = AssociationConfig(timeout_s=15, offline_reconcile=False)
+    rows = [observation("cam1", "before", 0), observation("cam1", "after", 3)]
+    assignments, tracks = AssociationEngine(cameras(), cfg).run(rows)
+    assert len(tracks) == 1
+    assert assignments[-1]["reason"] == "same_camera_reid"
+    for gap, expected in [(15, 1), (15.001, 2)]:
+        _, tracks = AssociationEngine(cameras(), cfg).run(
+            [rows[0], observation("cam1", "new", gap)]
+        )
+        assert len(tracks) == expected
+
+
+def test_same_camera_recovery_rejects_teleport_and_future_overlap():
+    from dataclasses import replace
+
+    cfg = AssociationConfig(offline_reconcile=False)
+    a = observation("cam1", "a", 0)
+    far = replace(observation("cam1", "b", 1), bbox_xyxy=(2000, 20, 2100, 200))
+    assert len(AssociationEngine(cameras(), cfg).run([a, far])[1]) == 2
+    rows = [a, observation("cam1", "b", 1), observation("cam1", "a", 2)]
+    assert len(AssociationEngine(cameras(), cfg).run(rows)[1]) == 2
+
+
+def test_graph_bonus_helps_adjacent_camera_without_linking_unconnected_one():
+    from math import sqrt
+
+    cfg = AssociationConfig(
+        similarity_threshold=0.72, adjacency_bonus=0.04, offline_reconcile=False
+    )
+    v = (0.70, sqrt(1 - 0.70**2))
+    rows = [observation("cam1", "a", 0), observation("cam2", "b", 1, v)]
+    assert len(AssociationEngine(cameras(), cfg).run(rows)[1]) == 1
+    isolated = [Camera("cam1"), Camera("cam2")]
+    assert len(AssociationEngine(isolated, cfg).run(rows)[1]) == 2
+
+
+def test_graph_ignores_stale_camera_edges():
+    cams = [
+        Camera("a", overlap_with=frozenset({"b"}), transition_to=frozenset({"c"})),
+        Camera("b"),
+        Camera("c"),
+    ]
+    rows = [
+        observation("a", "a", 0),
+        observation("b", "b", 1),
+        observation("b", "b", 9),
+        observation("b", "b", 18),
+        observation("c", "c", 19),
+    ]
+    assignments, tracks = AssociationEngine(cams).run(rows)
+    assert len(tracks) == 2
+    assert assignments[-1]["global_track_id"] != assignments[0]["global_track_id"]
+
+
+def test_return_to_old_camera_can_use_recent_overlap_while_episode_stays_visible():
+    cams = [Camera("a", overlap_with=frozenset({"b"})), Camera("b")]
+    rows = [
+        observation("a", "a", 0),
+        observation("b", "b", 1),
+        observation("b", "b", 9),
+        observation("b", "b", 18),
+        observation("a", "new", 19),
+    ]
+    assert len(AssociationEngine(cams).run(rows)[1]) == 1

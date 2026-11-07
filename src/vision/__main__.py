@@ -58,7 +58,8 @@ def main(argv=None):
     process.add_argument('--image-size', type=int, default=640)
     process.add_argument('--confidence', type=float, default=0.1)
     process.add_argument('--frame-stride', type=int, default=1)
-    process.add_argument('--local-buffer-s', type=float, default=1.0)
+    process.add_argument('--local-buffer-s', type=float, default=5.0)
+    process.add_argument('--max-duration-s', type=float, default=180.0, help='First N seconds per camera; 0 processes the full recording')
     process.add_argument('--embedding-interval-s', type=float, default=0.5)
     process.add_argument('--min-crop-height', type=int, default=48)
     process.add_argument('--min-sharpness', type=float, default=10.0)
@@ -74,6 +75,7 @@ def main(argv=None):
     debug.add_argument('--open', dest='open_result', action='store_true', help='Open video player after processing')
     debug.add_argument('--device', default='cpu')
     debug.add_argument('--max-frames', type=int)
+    debug.add_argument('--max-duration-s', type=float, default=180.0, help='First N seconds; 0 processes the full recording')
     debug.add_argument('--embedding', choices=['none', 'osnet', 'color'], default='none')
     args = parser.parse_args(argv)
     try:
@@ -85,7 +87,7 @@ def main(argv=None):
             torch.set_num_threads(4)
             torch.manual_seed(0)
             debug_video(ROOT, args.video, args.output, args.device, args.max_frames,
-                        args.open_result, args.choose, args.embedding)
+                        args.open_result, args.choose, args.embedding, args.max_duration_s)
         elif args.command == 'inspect':
             import cv2
             for path in args.videos:

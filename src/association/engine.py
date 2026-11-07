@@ -6,13 +6,17 @@ from math import sqrt
 from statistics import fmean
 
 from .models import AssociationConfig, Camera, ExitEvent, Observation, TrackState
+from .topology import CameraGraph, plausible_recovery
 
 
 class AssociationEngine:
     """Deterministic offline association with a global track lifecycle."""
 
     def __init__(
-        self, cameras: Iterable[Camera], config: AssociationConfig | None = None
+        self,
+        cameras: Iterable[Camera],
+        config: AssociationConfig | None = None,
+        floor_project: dict | None = None,
     ) -> None:
         camera_list = list(cameras)
         self.cameras = {camera.camera_id: camera for camera in camera_list}
@@ -22,11 +26,19 @@ class AssociationEngine:
             raise ValueError("at least one camera is required")
         self._validate_camera_links()
         self.config = config or AssociationConfig()
-        self._overlaps = self._build_symmetric_overlaps()
+        self.floor = None
+        self._floor_history = defaultdict(list)
+        if floor_project:
+            from .geolocation import FloorMatcher
+
+            self.floor = FloorMatcher(floor_project, camera_list)
+        self.graph = CameraGraph(self.cameras)
+        self._overlaps = self.graph.overlaps
         self._tracks: dict[str, TrackState] = {}
         self._local_to_global: dict[tuple[str, str], str] = {}
         self._assignments: list[dict[str, object]] = []
         self._next_id = 1
+        self.reconciliation_log: list[dict] = []
 
     def run(
         self,
@@ -36,6 +48,8 @@ class AssociationEngine:
         if self._assignments or self._tracks:
             raise RuntimeError("AssociationEngine instances are single-use")
 
+        observations = list(observations)
+        exit_events = list(exit_events)
         grouped_observations: dict[float, list[Observation]] = defaultdict(list)
         grouped_exits: dict[float, list[ExitEvent]] = defaultdict(list)
         references: set[tuple[str, int, str]] = set()
@@ -53,6 +67,15 @@ class AssociationEngine:
                 raise ValueError(f"unknown camera_id in exit event: {event.camera_id}")
             grouped_exits[event.timestamp_s].append(event)
 
+        self._local_intervals = {}
+        for o in observations:
+            start, end = self._local_intervals.get(
+                o.local_key, (o.timestamp_s, o.timestamp_s)
+            )
+            self._local_intervals[o.local_key] = (
+                min(start, o.timestamp_s),
+                max(end, o.timestamp_s),
+            )
         timestamps = sorted(set(grouped_observations) | set(grouped_exits))
         for timestamp in timestamps:
             self._advance_time(timestamp)
@@ -69,6 +92,12 @@ class AssociationEngine:
             self._export_track(self._tracks[track_id])
             for track_id in sorted(self._tracks)
         ]
+        if self.config.offline_reconcile:
+            from .reconcile import reconcile
+
+            assignments, tracks, self.reconciliation_log = reconcile(
+                self, observations, assignments, tracks, exit_events
+            )
         return assignments, tracks
 
     def _validate_camera_links(self) -> None:
@@ -84,14 +113,6 @@ class AssociationEngine:
                 or camera.camera_id in camera.transition_to
             ):
                 raise ValueError(f"camera {camera.camera_id!r} cannot link to itself")
-
-    def _build_symmetric_overlaps(self) -> dict[str, set[str]]:
-        overlaps = {camera_id: set() for camera_id in self.cameras}
-        for camera in self.cameras.values():
-            for other in camera.overlap_with:
-                overlaps[camera.camera_id].add(other)
-                overlaps[other].add(camera.camera_id)
-        return overlaps
 
     def _validate_observation(self, observation: Observation) -> None:
         if observation.camera_id not in self.cameras:
@@ -181,11 +202,36 @@ class AssociationEngine:
             if topology_reason is None:
                 continue
             score = self._appearance_score(observation, track)
+            if score is not None:
+                score = min(
+                    1.0,
+                    score
+                    + self.graph.bonus(topology_reason, self.config.adjacency_bonus),
+                )
+            geo = (
+                self.floor.online(
+                    observation, self._floor_history[track.global_track_id]
+                )
+                if self.floor
+                else None
+            )
+            if geo is not None and score is not None:
+                self.floor.stats["online_evaluations"] += 1
+                # Appearance still needs meaningful support even with a perfect location.
+                score = min(1.0, score + geo) if score >= 0.45 else score
             if score is not None and score >= self.config.similarity_threshold:
-                candidates.append((score, track, f"{topology_reason}_reid"))
+                candidates.append(
+                    (
+                        score,
+                        track,
+                        f"{topology_reason}_reid"
+                        + ("_floor" if geo is not None else ""),
+                    )
+                )
             elif (
                 score is None
                 and observation.embedding is None
+                and topology_reason != "same_camera"
                 and self.config.allow_topology_only_baseline
             ):
                 candidates.append((0.0, track, f"{topology_reason}_topology_baseline"))
@@ -226,17 +272,38 @@ class AssociationEngine:
         self, observation: Observation, track: TrackState
     ) -> str | None:
         target = observation.camera_id
+        # A new local fragment may recover this camera's ID only after a real gap.
+        if target in track.camera_last_seen:
+            gap = observation.timestamp_s - track.camera_last_seen[target]
+            if gap <= 0:
+                return None
+            start, end = self._local_intervals[observation.local_key]
+            for key, gid in self._local_to_global.items():
+                if gid != track.global_track_id or key[0] != target:
+                    continue
+                old_start, old_end = self._local_intervals[key]
+                if max(start, old_start) <= min(end, old_end):
+                    return None
+            if gap <= self.config.timeout_s:
+                if plausible_recovery(
+                    track.camera_last_bbox[target], observation.bbox_xyxy, gap
+                ):
+                    return "same_camera"
+                return None
+            # A long absence on this camera is valid if another recent camera
+            # continuously carries the episode and has a permitted edge back.
+        # Use recent graph edges, not a camera the person visited long ago.
+        reasons = []
         for source, last_seen in sorted(track.camera_last_seen.items()):
-            if source == target:
+            gap = observation.timestamp_s - last_seen
+            if not 0 <= gap <= self.config.timeout_s:
                 continue
-            if target in self._overlaps[source]:
-                return "overlap"
-            if (
-                target in self.cameras[source].transition_to
-                and observation.timestamp_s > last_seen
-            ):
-                return "transition"
-        return None
+            relation = self.graph.relation(source, target, gap)
+            if relation:
+                reasons.append(relation)
+        if "overlap" in reasons:
+            return "overlap"
+        return "transition" if "transition" in reasons else None
 
     def _new_track(self, observation: Observation) -> TrackState:
         global_track_id = f"g{self._next_id}"
@@ -263,8 +330,20 @@ class AssociationEngine:
             track.camera_last_seen.get(observation.camera_id, observation.timestamp_s),
             observation.timestamp_s,
         )
+        track.camera_last_bbox[observation.camera_id] = observation.bbox_xyxy
         self._local_to_global[observation.local_key] = track.global_track_id
         self._update_gallery(track, observation)
+        if self.floor:
+            point = self.floor.point(observation)
+            history = self._floor_history[track.global_track_id]
+            if point is not None:
+                # Keep distinct times; do not derive velocity from two camera views at one time.
+                sample = (observation.timestamp_s, *point)
+                if history and abs(history[-1][0] - sample[0]) < 1e-6:
+                    history[-1] = sample
+                elif not history or sample[0] - history[-1][0] >= 0.15:
+                    history.append(sample)
+                history[:] = [p for p in history if sample[0] - p[0] <= 2]
         assignment: dict[str, object] = {
             "schema_version": 1,
             "camera_id": observation.camera_id,

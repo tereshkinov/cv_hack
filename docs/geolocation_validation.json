@@ -1,0 +1,13 @@
+{
+  "tests_passed": 65,
+  "source_run": "20261106-202306-cf5a526b",
+  "result_run": "20261107-073316-3bbd0f87",
+  "observations": 2272,
+  "appearance_only_tracks": 64,
+  "floor_tracks": 57,
+  "cached_reassociation_wall_time_s": 4.852553249977063,
+  "accuracy_measured": false,
+  "same_appearance_thresholds": true,
+  "calibrated_cameras": 5,
+  "note": "Local three-minute-per-camera comparison. Fewer IDs do not establish improved accuracy; manually inspect false merges."
+}

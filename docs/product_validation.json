@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "unit_tests_passed": 48,
+  "validation_source": "three team videos recorded sequentially with 2s gaps",
+  "real_pipeline": {
+    "camera_count": 3,
+    "observation_count": 453,
+    "global_track_count": 5,
+    "main_track": "g1",
+    "main_track_camera_ids": [
+      "cam01",
+      "cam02",
+      "cam03"
+    ],
+    "repeated_core_exports_byte_identical": true,
+    "product_wall_time_s": [
+      20.099221999989823,
+      19.051008499984164
+    ]
+  },
+  "synthetic_geometry": {
+    "weighted_fusion": "passed, 40 samples",
+    "conflict_rejection": "passed, 40 samples",
+    "not_a_person_detection_accuracy_test": true
+  },
+  "browser_checks": [
+    "editor and calibration",
+    "start pipeline",
+    "cancel real worker",
+    "reload completed results",
+    "synchronized seek and playback",
+    "camera trajectory",
+    "weighted floor position",
+    "conflict warning"
+  ],
+  "limitations": [
+    "no independent accuracy ground truth yet",
+    "four short extra tracks remain on initial recordings",
+    "floor calibration was not available for real video validation",
+    "CPU tested; MPS and CUDA not tested"
+  ]
+}

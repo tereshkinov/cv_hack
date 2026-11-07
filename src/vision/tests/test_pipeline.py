@@ -103,3 +103,31 @@ def test_empty_detections_and_stride_are_not_fabricated(tmp_path):
     assert report['observation_count'] == 0
     assert (tmp_path / 'out/observations.jsonl').read_text() == ''
     assert all(c['processed_frames'] == 2 for c in report['cameras'])
+
+
+def test_duration_limit_is_source_seconds_not_sample_count(tmp_path):
+    config = configuration(tmp_path)
+    report = run(config, tmp_path / 'limited', tmp_path,
+                 Options(embedding='none', max_duration_s=0.6, frame_stride=2), FakeTracker)
+    assert all(c['decoded_frames'] == 3 for c in report['cameras'])
+    assert all(c['processed_frames'] == 2 for c in report['cameras'])
+    assert 'track_buffer: 13' in next((tmp_path / 'limited').glob('tracker-*.yaml')).read_text()
+    rows = [json.loads(x) for x in (tmp_path / 'limited/observations.jsonl').read_text().splitlines()]
+    assert all(o['frame_index'] < 3 for o in rows)
+
+
+def test_duration_limit_uses_each_cameras_own_frame_rate(tmp_path):
+    cams = []
+    for cid, fps in [('slow', 5), ('fast', 10)]:
+        path = tmp_path / f'{cid}.avi'
+        writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*'MJPG'), fps, (80, 80))
+        assert writer.isOpened()
+        for _ in range(8):
+            writer.write(np.full((80, 80, 3), 100, dtype=np.uint8))
+        writer.release()
+        cams.append({'camera_id': cid, 'video_path': path.name})
+    config = tmp_path / 'cams.json'
+    config.write_text(json.dumps({'schema_version': 1, 'cameras': cams}))
+    report = run(config, tmp_path / 'out', tmp_path,
+                 Options(embedding='none', max_duration_s=0.6), FakeTracker)
+    assert {c['camera_id']: c['decoded_frames'] for c in report['cameras']} == {'slow': 3, 'fast': 6}

@@ -1,0 +1,17 @@
+{
+  "tests_passed": 59,
+  "units": "relative",
+  "background": "data/raw/hackathon/office.jpg",
+  "motion_experiment_reverted": true,
+  "qa_isolated_project": "runs/floor-qa/project.json",
+  "qa_checks": [
+    "four point pairs through browser",
+    "saved homography survives reload",
+    "independent test click projects to plan",
+    "scale change doubles coordinates consistently",
+    "projection job through browser completes",
+    "source IDs and source result unchanged"
+  ],
+  "qa_projection_wall_time_s": 1.240168165997602,
+  "real_calibration": "Points are supplied manually by the user; no QA anchors transferred."
+}
