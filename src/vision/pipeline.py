@@ -14,7 +14,8 @@ from importlib.metadata import PackageNotFoundError, version
 import cv2
 import numpy as np
 
-from .embeddings import ColorHistogram, OSNet, normalized, sha256
+from .appearance_preprocess import ShadowGamma
+from .embeddings import ColorHistogram, CorrectedAppearance, OSNet, normalized, sha256
 from .preview import PreviewOverlay
 
 
@@ -46,6 +47,9 @@ class Options:
     max_frames: int | None = None
     max_duration_s: float = 0.0
     preview: bool = False
+    appearance_preprocess: str = 'off'
+    appearance_gamma: float = 0.8
+    appearance_dark_luma: int = 80
 
 
 def load_cameras(path: Path, root: Path) -> list[dict]:
@@ -105,6 +109,10 @@ def write_json(path, value):
 def validate_options(o):
     if o.embedding not in {'osnet', 'color', 'none'}:
         raise ValueError('embedding must be osnet, color, or none')
+    if o.appearance_preprocess not in {'off', 'gamma'}:
+        raise ValueError('appearance preprocessing must be off or gamma')
+    if o.appearance_preprocess == 'gamma' and o.embedding != 'osnet':
+        raise ValueError('appearance gamma preprocessing requires OSNet')
     if o.frame_stride < 1 or o.top_k < 1 or o.image_size < 32:
         raise ValueError('frame_stride/top_k/image_size must be positive')
     if not 0 < o.confidence <= 1 or not 0 <= o.max_overlap <= 1:
@@ -119,6 +127,10 @@ def validate_options(o):
 def run(cameras_path: Path, output: Path, root: Path, options: Options,
         detector_factory=None, encoder=None):
     validate_options(options)
+    correction = (
+        ShadowGamma(options.appearance_gamma, options.appearance_dark_luma)
+        if options.appearance_preprocess == 'gamma' else None
+    )
     cameras = load_cameras(cameras_path, root)
     # Prevent accidental overwrite of a previous or partial processing run.
     output.mkdir(parents=True, exist_ok=False)
@@ -138,6 +150,8 @@ def run(cameras_path: Path, output: Path, root: Path, options: Options,
                 encoder = OSNet(weights if weights.is_absolute() else root / weights, options.device)
             elif options.embedding == 'color':
                 encoder = ColorHistogram()
+        if correction is not None:
+            encoder = CorrectedAppearance(encoder, correction)
         summaries, tracklets, observation_count = [], [], 0
         camera_files = []
         for camera_number, camera in enumerate(cameras):
