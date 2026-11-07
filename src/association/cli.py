@@ -109,6 +109,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 else "final",
                 "geolocation": {
                     "enabled": engine.floor is not None,
+                    "prediction_model": engine.floor.prediction_model
+                    if engine.floor
+                    else None,
                     "calibrated_cameras": sorted(engine.floor.calibrations)
                     if engine.floor
                     else [],
