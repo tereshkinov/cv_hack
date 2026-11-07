@@ -663,6 +663,11 @@ def main():
         "--runs", type=Path, help="Optional isolated run directory for testing"
     )
     args = parser.parse_args()
+    from src.demo_bundle import restore_bundle
+
+    restored = restore_bundle(ROOT)
+    if restored["restored"]:
+        print(f"Restored demo files: {restored['restored']}")
     server = AppServer(("127.0.0.1", args.port), args.project, args.runs)
     url = f"http://127.0.0.1:{server.server_port}"
     print(f"Office editor: {url}\nProject: {args.project}", flush=True)

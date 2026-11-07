@@ -1,0 +1,2 @@
+# Compressed portable demo chunks are binary and must not be newline-normalized.
+demo/assets.tar.gz.part-* -text -diff

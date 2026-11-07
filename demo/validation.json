@@ -1,0 +1,16 @@
+{
+  "ready_run": "20261107-205603-b5eb494b",
+  "restored_files": 4559,
+  "clean_copy_verified": true,
+  "cameras": 5,
+  "calibration_pairs": 53,
+  "directed_portals": 12,
+  "preview_frames_exist": true,
+  "models_match_provenance_sha256": true,
+  "all_bundle_files_match_manifest_sha256": true,
+  "existing_local_files_preserved_in_unit_test": true,
+  "video_transcoding": false,
+  "video_verification": "Decoded selected frames matched originals; camera 5 also compared sequentially for the first 1005 frames because indexed seeking differs after remux.",
+  "tests_passed": 262,
+  "historical_runs_included": false
+}
