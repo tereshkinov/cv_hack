@@ -6,8 +6,10 @@ from bisect import bisect_left
 from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, replace
-from math import exp, hypot, isfinite
+from math import exp, hypot, isfinite, sqrt
 from statistics import median
+
+from .kalman_motion import fit_floor_state
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +116,11 @@ class FloorMatcher:
             ),
         )
         self.speed = 2.0 * self.scale
+        self.prediction_model = project.get("floor_prediction", "heuristic")
+        if self.prediction_model not in ("heuristic", "kalman"):
+            raise ValueError("floor_prediction must be heuristic or kalman")
+        self._measurement_var = (0.55 * self.radius) ** 2
+        self._acceleration_var = (0.65 * self.scale) ** 2
         self.sync_uncertainty_s = _bounded_number(
             processing.get("sync_uncertainty_s", 0.25),
             "sync_uncertainty_s",
@@ -352,7 +359,32 @@ class FloorMatcher:
             self.coordinate_units,
         )
 
-    def expected_region(self, history, time) -> tuple[ExpectedRegion | None, str]:
+    def _fit_kalman(self, points):
+        return fit_floor_state(
+            points, self._measurement_var, self._acceleration_var, self.speed**2
+        )
+
+    def route_speed(self, observations, meters_per_unit):
+        """Return a departure speed and confidence for the existing route model."""
+        if self.prediction_model == "heuristic":
+            if self.coordinate_units != "meters":
+                return None, 0.0
+            motion = self.motion(self.samples(observations))
+            return motion.speed_coordinate_units_s, motion.reliability
+
+        samples = self._detailed_samples(observations)
+        state = self._fit_kalman(self._collapse_history(samples))
+        if state is None or observations[-1].timestamp_s - state.time_s > 0.25:
+            return None, 0.0
+        speed = hypot(*state.velocity)
+        if speed <= sqrt(state.velocity_var):
+            return None, 0.0
+        projection_quality = median(sample[3] for sample in samples)
+        return speed * meters_per_unit, state.velocity_reliability * projection_quality
+
+    def expected_region(
+        self, history, time, *, time_uncertainty_s=0.0
+    ) -> tuple[ExpectedRegion | None, str]:
         points = self._collapse_history(history)
         if not points:
             return None, "no_history"
@@ -363,6 +395,43 @@ class FloorMatcher:
         dt = max(0.0, dt)
         if dt > 4:
             return None, "long_gap"
+        if self.prediction_model == "kalman":
+            state = self._fit_kalman(points)
+            if state is not None:
+                forecast = state.predict(end + dt, self._acceleration_var)
+                speed = hypot(*forecast.velocity)
+                direction = (
+                    tuple(v / speed for v in forecast.velocity) if speed > 0 else None
+                )
+                # S includes the uncertainty of the new observation and of timing.
+                across_var = forecast.position_var + self._measurement_var
+                along_var = across_var + (speed * time_uncertainty_s) ** 2
+                return (
+                    ExpectedRegion(
+                        forecast.position,
+                        direction,
+                        sqrt(along_var),
+                        sqrt(across_var),
+                        dt,
+                        exp(-dt / 4),
+                        self.coordinate_units,
+                    ),
+                    "kalman_prediction",
+                )
+            # Position-only evidence for a single sighting or a short history.
+            radius = self.radius + self.speed * (dt * 0.35 + time_uncertainty_s)
+            return (
+                ExpectedRegion(
+                    points[-1][1:],
+                    None,
+                    radius,
+                    radius,
+                    dt,
+                    0.25 * exp(-dt / 4),
+                    self.coordinate_units,
+                ),
+                "kalman_insufficient_history",
+            )
         motion = self.motion(points)
         if motion.position is None:
             return None, motion.reason
@@ -407,13 +476,18 @@ class FloorMatcher:
     ) -> SpatialEvidence:
         if not _finite_pair(point):
             return SpatialEvidence(None, None, 0.0, "invalid_target_point")
-        region, motion_reason = self.expected_region(history, time)
-        if region is None:
-            return SpatialEvidence(None, None, 0.0, motion_reason)
         time_uncertainty = (
             0.0 if time_uncertainty_s is None else max(0.0, time_uncertainty_s)
         )
-        expansion = self.speed * time_uncertainty
+        use_kalman = self.prediction_model == "kalman"
+        region, motion_reason = self.expected_region(
+            history, time, time_uncertainty_s=time_uncertainty
+        )
+        if use_kalman:
+            self.stats[f"floor_prediction:{motion_reason}"] += 1
+        if region is None:
+            return SpatialEvidence(None, None, 0.0, motion_reason)
+        expansion = 0.0 if use_kalman else self.speed * time_uncertainty
         along_radius = region.along_radius + expansion
         across_radius = region.across_radius + expansion
         dx, dy = point[0] - region.center[0], point[1] - region.center[1]
@@ -457,7 +531,7 @@ class FloorMatcher:
             discrepancy,
             reliability,
             reason,
-            max(0.0, time - max(p[0] for p in self._collapse_history(history))),
+            region.dt_s,
             adjusted_region,
         )
 
@@ -481,7 +555,9 @@ class FloorMatcher:
             observation.timestamp_s,
             projection.point,
             time_uncertainty_s=(
-                self.sync_uncertainty_s if self.sync_uncertainty_configured else 0.0
+                self.sync_uncertainty_s
+                if self.sync_uncertainty_configured or self.prediction_model == "kalman"
+                else 0.0
             ),
         )
         if evidence.adjustment is None:
@@ -585,7 +661,7 @@ class FloorMatcher:
             reliability=evidence.reliability * projection_reliability,
             reason=(
                 "sequential_prediction"
-                if evidence.adjustment is not None
+                if evidence.available and self.prediction_model == "heuristic"
                 else evidence.reason
             ),
         )
