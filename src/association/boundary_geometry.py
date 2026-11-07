@@ -17,6 +17,7 @@ from statistics import median
 from typing import Literal
 
 from .geolocation import FloorMatcher
+from .spatial_motion import OfficeMotionModel
 
 BoundaryMode = Literal[
     "same_camera_recovery",
@@ -82,6 +83,7 @@ class BoundaryGeometryMatcher:
         self,
         cameras,
         floor_matcher: FloorMatcher | None = None,
+        route_model: OfficeMotionModel | None = None,
         *,
         window_s: float = 1.5,
         max_same_camera_gap_s: float = 4.0,
@@ -95,6 +97,7 @@ class BoundaryGeometryMatcher:
             raise ValueError("independent_step_s must be positive and finite")
         self.cameras = {camera.camera_id: camera for camera in cameras}
         self.floor = floor_matcher
+        self.route_model = route_model
         self.window_s = window_s
         self.max_same_camera_gap_s = max_same_camera_gap_s
         self.independent_step_s = independent_step_s
@@ -131,6 +134,12 @@ class BoundaryGeometryMatcher:
         right = self._head(right)
         if mode == "same_camera_recovery":
             return self._same_camera(left, right, mode)
+        if mode == "sequential_transition" and self.route_model is not None:
+            route = self._route_boundary(left, right, mode)
+            if route.available:
+                return route
+            if self.floor is None:
+                return route
         return self._floor_boundary(left, right, mode)
 
     def _same_camera(self, left, right, mode) -> BoundaryGeometryEvidence:
@@ -255,6 +264,46 @@ class BoundaryGeometryMatcher:
                 "value_scale": "exp(-0.5 * discrepancy^2), reliability not applied",
                 "legacy_adjustment": spatial.adjustment,
             },
+        )
+
+    def _route_boundary(self, left, right, mode) -> BoundaryGeometryEvidence:
+        speed = None
+        speed_reliability = 0.0
+        if self.floor is not None and self.floor.coordinate_units == "meters":
+            motion = self.floor.motion(self.floor.samples(left))
+            speed = motion.speed_coordinate_units_s
+            speed_reliability = motion.reliability
+        evidence = self.route_model.transition_evidence(
+            left[0].camera_id,
+            right[0].camera_id,
+            left[-1].timestamp_s,
+            right[0].timestamp_s,
+            observed_speed_m_s=speed,
+            observed_speed_reliability=speed_reliability,
+        )
+        if not evidence.available:
+            return self._missing(
+                mode,
+                f"route:{evidence.reason}",
+                evidence.observed_time_s,
+            )
+        expected_region = {
+            "path_node_ids": list(evidence.path_node_ids),
+            "trajectory": [asdict(point) for point in evidence.predicted_trajectory],
+            "feasible_time_range_s": list(evidence.feasible_time_range_s),
+        }
+        return BoundaryGeometryEvidence(
+            True,
+            evidence.value,
+            evidence.reliability,
+            evidence.support_count,
+            f"route:{evidence.reason}",
+            mode,
+            evidence.z_score,
+            "meters_and_seconds",
+            evidence.observed_time_s,
+            expected_region,
+            evidence.as_dict(),
         )
 
     def _topology_reason(self, left_camera, right_camera, mode):

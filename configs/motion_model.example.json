@@ -1,0 +1,32 @@
+{
+  "coordinate_units": "meters",
+  "processing": {
+    "sync_uncertainty_s": 0.25
+  },
+  "motion_model": {
+    "nodes": [
+      {"id": "upper_hall", "point": [4.0, 2.0]},
+      {"id": "central_turn", "point": [4.0, 8.0]},
+      {"id": "lower_hall", "point": [9.0, 8.0]}
+    ],
+    "edges": [
+      {"a": "upper_hall", "b": "central_turn", "bidirectional": true},
+      {"a": "central_turn", "b": "lower_hall", "bidirectional": true}
+    ],
+    "camera_gates": {
+      "cam3": {"both": ["upper_hall"]},
+      "cam4": {"both": ["central_turn"]},
+      "cam5": {"both": ["lower_hall"]}
+    },
+    "walking_speed_m_s": {
+      "min": 0.6,
+      "typical": 1.35,
+      "max": 2.2,
+      "sigma": 0.35
+    },
+    "timing_sigma_s": 0.75,
+    "route_uncertainty_fraction": 0.1,
+    "max_dwell_s": 3.0,
+    "distance_reliability": 0.8
+  }
+}
