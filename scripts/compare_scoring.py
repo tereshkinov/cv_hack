@@ -16,7 +16,7 @@ def ref(row):
     return row["camera_id"], row["frame_index"], row["local_track_id"]
 
 
-def compare(baseline, experiment, output):
+def compare(baseline, experiment, output, allow_appearance_change=False):
     a = {
         ref(r): r["global_track_id"]
         for r in rows(baseline / "association/assignments.jsonl")
@@ -27,10 +27,28 @@ def compare(baseline, experiment, output):
     }
     if a.keys() != b.keys():
         raise ValueError("Runs must contain exactly the same observation references")
-    if (baseline / "vision/observations.jsonl").read_bytes() != (
-        experiment / "vision/observations.jsonl"
-    ).read_bytes():
-        raise ValueError("Detections and embeddings differ")
+    source_bytes = (baseline / "vision/observations.jsonl").read_bytes()
+    experiment_bytes = (experiment / "vision/observations.jsonl").read_bytes()
+    appearance_changed = source_bytes != experiment_bytes
+    if appearance_changed:
+        if not allow_appearance_change:
+            raise ValueError("Detections and embeddings differ")
+        left_rows = rows(baseline / "vision/observations.jsonl")
+        right_rows = rows(experiment / "vision/observations.jsonl")
+        if len(left_rows) != len(right_rows):
+            raise ValueError("Observation count differs")
+        for left, right in zip(left_rows, right_rows, strict=True):
+            without_features = lambda row: {
+                k: v
+                for k, v in row.items()
+                if k not in {"embedding", "embedding_model_id"}
+            }
+            if without_features(left) != without_features(right) or (
+                left.get("embedding") is None
+            ) != (right.get("embedding") is None):
+                raise ValueError(
+                    "Only appearance may differ in an appearance comparison"
+                )
     if json.loads((baseline / "project.json").read_text()) != json.loads(
         (experiment / "project.json").read_text()
     ):
@@ -52,6 +70,8 @@ def compare(baseline, experiment, output):
     decision_path = experiment / "association/decisions.jsonl"
     decisions = rows(decision_path) if decision_path.exists() else []
     summary = {
+        "appearance_changed": appearance_changed,
+        "experiment_observations_sha256": hashlib.sha256(experiment_bytes).hexdigest(),
         "baseline_run": baseline.name,
         "experiment_run": experiment.name,
         "observations": len(a),
@@ -125,5 +145,10 @@ if __name__ == "__main__":
     parser.add_argument("--baseline", type=Path, required=True)
     parser.add_argument("--experiment", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--allow-appearance-change",
+        action="store_true",
+        help="Permit new embeddings while requiring identical detections and eligible references",
+    )
     args = parser.parse_args()
-    compare(args.baseline, args.experiment, args.output)
+    compare(args.baseline, args.experiment, args.output, args.allow_appearance_change)

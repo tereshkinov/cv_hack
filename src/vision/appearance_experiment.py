@@ -1,8 +1,8 @@
 """Re-encode fixed detections and evaluate labeled cross-camera appearance pairs."""
 import argparse
+import json
 from collections import defaultdict
 from itertools import combinations
-import json
 from math import ceil, floor
 from pathlib import Path
 from statistics import mean
@@ -13,7 +13,7 @@ import numpy as np
 
 from .appearance_preprocess import ShadowGamma
 from .clothing_color import COLOR_MODEL_ID, clothing_colors, clothing_similarity
-from .embeddings import CorrectedAppearance, OSNET_FILE, OSNet, normalized, sha256
+from .embeddings import OSNET_FILE, CorrectedAppearance, OSNet, normalized, sha256
 from .pipeline import load_cameras, package_versions, write_json
 
 ROOT = Path(__file__).resolve().parents[2]

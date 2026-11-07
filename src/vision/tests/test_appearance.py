@@ -3,7 +3,14 @@ import numpy as np
 import pytest
 
 from src.vision.appearance_experiment import (
-    color_evidence, cosine, evaluate, evaluate_ids, observation_variant, read_rows, reencode, suggestions,
+    color_evidence,
+    cosine,
+    evaluate,
+    evaluate_ids,
+    observation_variant,
+    read_rows,
+    reencode,
+    suggestions,
 )
 from src.vision.appearance_preprocess import ShadowGamma
 from src.vision.clothing_color import clothing_colors, clothing_similarity

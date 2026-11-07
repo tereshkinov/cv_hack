@@ -1,0 +1,87 @@
+{
+  "appearance_commit": "eaabf67",
+  "merge_commit": "e109658",
+  "tests_passed": 96,
+  "source_run": "20261107-100047-e7b28217",
+  "observations": 2272,
+  "encoded_crops_per_mode": 816,
+  "decoded_sample_frames": 702,
+  "wall_s": 74.24919062497793,
+  "encode_s": {
+    "raw": 30.570207341806963,
+    "gamma": 30.31346108292928
+  },
+  "color_evidence_count": 586,
+  "raw_observations_byte_identical": true,
+  "raw_control_partition_identical": true,
+  "variants": [
+    {
+      "mode": "raw",
+      "decision_mode": "balanced",
+      "run_id": "20261107-101333-appearance-raw-e6b93b0f",
+      "tracks": 56
+    },
+    {
+      "mode": "gamma",
+      "decision_mode": "balanced",
+      "run_id": "20261107-101340-appearance-gamma-c258ade3",
+      "tracks": 57
+    },
+    {
+      "mode": "combined",
+      "decision_mode": "balanced",
+      "run_id": "20261107-101346-appearance-combined-dbfd1735",
+      "tracks": 57
+    }
+  ],
+  "accuracy_measured": false,
+  "color_used_for_id": false,
+  "same_detections_local_ids_and_eligibility": true,
+  "profile": "same snapshot, 180s per camera, native geo, balanced; thresholds unchanged",
+  "comparisons": {
+    "gamma": {
+      "appearance_changed": true,
+      "experiment_observations_sha256": "3a1baff4cc62d7b63a0691a605f722b630159873e89a50beefd37cb12ff0f1ae",
+      "baseline_run": "20261107-101333-appearance-raw-e6b93b0f",
+      "experiment_run": "20261107-101340-appearance-gamma-c258ade3",
+      "observations": 2272,
+      "observations_sha256": "66b5350eb21ad9fcb025c286ab3bcd06f6c31753b7046d1dfaf8e80cf16bbe34",
+      "baseline_tracks": 56,
+      "experimental_tracks": 57,
+      "observation_pairs_unlinked": 63,
+      "observation_pairs_newly_linked": 0,
+      "candidate_decision_reasons": {
+        "supported": 363,
+        "appearance_too_weak": 373,
+        "insufficient_support": 582,
+        "spatial_contradiction": 21
+      },
+      "gallery_updates_blocked": 88,
+      "accuracy_measured": false,
+      "note": "Partition changes are not errors or improvements without human labels. Support acceptance in decisions.jsonl does not imply final assignment; selected_online records online selection only.",
+      "review_cases": 1
+    },
+    "combined": {
+      "appearance_changed": true,
+      "experiment_observations_sha256": "8685ff0f08c6a936e402a11c47dd9ae64c290ad12bc72c02a42e798ff8002b19",
+      "baseline_run": "20261107-101333-appearance-raw-e6b93b0f",
+      "experiment_run": "20261107-101346-appearance-combined-dbfd1735",
+      "observations": 2272,
+      "observations_sha256": "66b5350eb21ad9fcb025c286ab3bcd06f6c31753b7046d1dfaf8e80cf16bbe34",
+      "baseline_tracks": 56,
+      "experimental_tracks": 57,
+      "observation_pairs_unlinked": 63,
+      "observation_pairs_newly_linked": 0,
+      "candidate_decision_reasons": {
+        "supported": 377,
+        "appearance_too_weak": 391,
+        "insufficient_support": 550,
+        "spatial_contradiction": 21
+      },
+      "gallery_updates_blocked": 90,
+      "accuracy_measured": false,
+      "note": "Partition changes are not errors or improvements without human labels. Support acceptance in decisions.jsonl does not imply final assignment; selected_online records online selection only.",
+      "review_cases": 1
+    }
+  }
+}
