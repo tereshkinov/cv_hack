@@ -78,3 +78,16 @@ class OSNet:
         with self.torch.inference_mode():
             out = self.model((tensor - self.mean) / self.std).cpu().numpy()
         return [normalized(v) for v in out]
+
+
+class CorrectedAppearance:
+    """Apply one named preprocessing policy to every descriptor in a run."""
+
+    def __init__(self, encoder, correction):
+        self.encoder = encoder
+        self.correction = correction
+        self.dimension = encoder.dimension
+        self.model_id = f'{encoder.model_id}:preprocess={correction.tag}'
+
+    def encode(self, crops: list[np.ndarray]) -> list[np.ndarray]:
+        return self.encoder.encode([self.correction(crop) for crop in crops])
