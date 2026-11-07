@@ -65,13 +65,17 @@ def test_distinct_appearance_tracks_remain_separate():
 
 def test_offline_correction_respects_timeout_and_explicit_exit():
     source = segment("cam1", "a", 0)
-    _, tracks = AssociationEngine(cameras()).run(source + delayed_target(start=12))
+    _, tracks = AssociationEngine(cameras(), AssociationConfig(timeout_s=10)).run(
+        source + delayed_target(start=12)
+    )
     assert len(tracks) == 2
-    _, tracks = AssociationEngine(cameras()).run(
+    _, tracks = AssociationEngine(cameras(), AssociationConfig(timeout_s=10)).run(
         source + delayed_target(), [ExitEvent("cam1", "a", 1.1)]
     )
     assert len(tracks) == 2
-    _, tracks = AssociationEngine(cameras()).run(source + delayed_target(start=11))
+    _, tracks = AssociationEngine(cameras(), AssociationConfig(timeout_s=10)).run(
+        source + delayed_target(start=11)
+    )
     assert len(tracks) == 1  # exactly 10s between last source and first target
 
 

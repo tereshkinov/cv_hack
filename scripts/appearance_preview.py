@@ -8,7 +8,12 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from src.app.review_data import project_paths, rebuild_projection, save_review
+from src.app.review_data import (
+    project_paths,
+    rebuild_projection,
+    save_review,
+    update_box_assignment,
+)
 from src.association.cli import main as associate
 from src.vision.appearance_experiment import MODES, read_rows, reference
 from src.vision.embeddings import sha256
@@ -148,10 +153,7 @@ def build(source, experiment, mode, decision_mode="balanced"):
                             box["local_track_id"],
                         )
                     ]
-                    box["global_track_id"], box["reason"] = (
-                        a["global_track_id"],
-                        a["reason"],
-                    )
+                    update_box_assignment(box, a)
         data["tracks"] = json.loads((folder / "association/tracks.json").read_text())[
             "tracks"
         ]

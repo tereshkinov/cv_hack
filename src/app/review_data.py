@@ -12,6 +12,23 @@ import cv2
 from .fusion import fuse_positions, smooth_paths
 from .geometry import project
 
+OPTIONAL_ASSIGNMENT_FIELDS = (
+    "confirmation_state",
+    "confirmed_at_s",
+    "observed_state",
+    "fragment_id",
+    "provisional_global_track_id",
+)
+
+
+def update_box_assignment(box, assignment):
+    box["global_track_id"] = assignment["global_track_id"]
+    box["reason"] = assignment["reason"]
+    for key in OPTIONAL_ASSIGNMENT_FIELDS:
+        box.pop(key, None)
+        if key in assignment:
+            box[key] = assignment[key]
+
 
 def build_review(run_dir, project_snapshot, cameras, options, progress=lambda *a: None):
     run_dir = Path(run_dir)
@@ -38,6 +55,7 @@ def build_review(run_dir, project_snapshot, cameras, options, progress=lambda *a
                 "bbox_xyxy": o["bbox_xyxy"],
                 "confidence": o["detection_confidence"],
                 "reason": assigned["reason"],
+                **{k: assigned[k] for k in OPTIONAL_ASSIGNMENT_FIELDS if k in assigned},
             }
         )
     frame_dir = run_dir / "frames"
@@ -193,6 +211,10 @@ def project_paths(project_snapshot, manifest, options):
 def save_review(run_dir, output):
     paths = output["paths"]
     tracks = output["tracks"]
+    confirmations = {
+        t["global_track_id"]: t.get("confirmation_state", "confirmed") for t in tracks
+    }
+    has_confirmation = any("confirmation_state" in t for t in tracks)
     (run_dir / "review.json").write_text(
         json.dumps(output, ensure_ascii=False, allow_nan=False)
     )
@@ -205,6 +227,11 @@ def save_review(run_dir, output):
                 "end_s",
                 "camera_ids",
                 "close_reason",
+                *(
+                    ["confirmation_state", "confirmed_at_s", "confirmation_reason"]
+                    if any("confirmation_state" in t for t in tracks)
+                    else []
+                ),
             ],
         )
         writer.writeheader()
@@ -224,6 +251,7 @@ def save_review(run_dir, output):
                 "x",
                 "y",
                 "coordinate_units",
+                *(["confirmation_state"] if has_confirmation else []),
                 "status",
                 "camera_ids",
             ],
@@ -234,6 +262,11 @@ def save_review(run_dir, output):
                 writer.writerow(
                     {
                         "global_track_id": gid,
+                        **(
+                            {"confirmation_state": confirmations[gid]}
+                            if has_confirmation
+                            else {}
+                        ),
                         "x": point["x_m"],
                         "y": point["y_m"],
                         "coordinate_units": output.get("coordinate_units", "meters"),
@@ -315,6 +348,8 @@ def reassociate_cached(
     options,
     progress=lambda *a: None,
     decision_mode="baseline",
+    fragment_mode="off",
+    confirm_tracks=False,
 ):
     """Reuse immutable detections/embeddings and JPEGs, but rebuild global IDs."""
     from src.association.cli import main as associate
@@ -324,6 +359,7 @@ def reassociate_cached(
     )
     # A copied source may have diagnostics from a different decision mode.
     (run_dir / "association/decisions.jsonl").unlink(missing_ok=True)
+    (run_dir / "association/fragment_graph.json").unlink(missing_ok=True)
     progress("association", "Пересчитываем ID: внешность, граф камер и геометрия пола")
     associate(
         [
@@ -337,6 +373,9 @@ def reassociate_cached(
             str(run_dir / "project.json"),
             "--decision-mode",
             decision_mode,
+            "--fragment-mode",
+            fragment_mode,
+            *(["--confirm-tracks"] if confirm_tracks else []),
             "--timeout-s",
             str(options["timeout_s"]),
             "--similarity-threshold",
@@ -361,8 +400,7 @@ def reassociate_cached(
                 assignment = mapping[
                     (camera["camera_id"], frame["frame_index"], box["local_track_id"])
                 ]
-                box["global_track_id"] = assignment["global_track_id"]
-                box["reason"] = assignment["reason"]
+                update_box_assignment(box, assignment)
     data["tracks"] = json.loads((run_dir / "association/tracks.json").read_text())[
         "tracks"
     ]
@@ -382,6 +420,8 @@ def reassociate_cached(
         project_snapshot, data["cameras"], data["options"]
     )
     data["options"]["decision_mode"] = decision_mode
+    data["options"]["fragment_mode"] = fragment_mode
+    data["options"]["confirm_tracks"] = confirm_tracks
     data["reassociation_source_run"] = source_dir.name
     save_review(run_dir, data)
     return data

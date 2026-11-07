@@ -263,6 +263,7 @@ class Handler(BaseHTTPRequestHandler):
                     "performance.json": "performance.json",
                     "reconciliation.json": "association/reconciliation.json",
                     "decisions.jsonl": "association/decisions.jsonl",
+                    "fragment_graph.json": "association/fragment_graph.json",
                 }
                 if len(parts) == 5 and parts[3] == "export" and parts[4] in exports:
                     return self.reply(
@@ -385,11 +386,14 @@ class Handler(BaseHTTPRequestHandler):
             if (
                 len(parts) == 4
                 and parts[:2] == ["api", "runs"]
-                and parts[3] in {"project", "reassociate", "balanced"}
+                and parts[3] in {"project", "reassociate", "balanced", "tracklets"}
             ):
-                project = validate_project(self.json_body()["project"])
+                body = self.json_body()
+                project = validate_project(body["project"])
                 cameras = camera_manifest(project, self.server.videos(), ROOT)
-                if not any(c.get("calibration") for c in project["cameras"]):
+                if parts[3] != "tracklets" and not any(
+                    c.get("calibration") for c in project["cameras"]
+                ):
                     raise ValueError("Сначала привяжите к полу хотя бы одну камеру")
                 result = self.server.jobs.start(
                     project,
@@ -397,6 +401,9 @@ class Handler(BaseHTTPRequestHandler):
                     project["processing"],
                     "projection" if parts[3] == "project" else parts[3],
                     source_run_id=parts[2],
+                    experiment_profile=body.get("profile", "combined")
+                    if parts[3] == "tracklets"
+                    else None,
                 )
                 return self.reply(202, result)
             if route.path in {"/api/runs", "/api/prepare"}:
@@ -438,13 +445,32 @@ class Handler(BaseHTTPRequestHandler):
                 project = validate_project(self.json_body())
                 path = self.server.project_path
                 path.parent.mkdir(parents=True, exist_ok=True)
+                preserve_timeout = (
+                    parse_qs(route.query).get("preserve_timeout") == ["1"]
+                    or urlparse(self.headers.get("Referer", "")).path == "/"
+                )
                 with self.server.save_lock:
+                    if preserve_timeout and path.exists():
+                        saved = json.loads(path.read_text())
+                        project["processing"]["timeout_s"] = saved.get(
+                            "processing", {}
+                        ).get("timeout_s", DEFAULT_OPTIONS["timeout_s"])
                     temporary = path.with_suffix(".tmp")
                     temporary.write_text(
                         json.dumps(project, ensure_ascii=False, indent=2) + "\n"
                     )
                     temporary.replace(path)
-                return self.reply(200, {"saved": True})
+                return self.reply(
+                    200,
+                    {
+                        "saved": True,
+                        **(
+                            {"timeout_s": project["processing"]["timeout_s"]}
+                            if preserve_timeout
+                            else {}
+                        ),
+                    },
+                )
             if route.path == "/api/upload":
                 query = parse_qs(route.query)
                 name = Path(query.get("name", ["video"])[0]).name

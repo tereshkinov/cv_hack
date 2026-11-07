@@ -96,3 +96,28 @@ def test_local_plan_catalog_and_raster_upload(app, monkeypatch):
     with pytest.raises(HTTPError) as error:
         urlopen(request)
     assert error.value.code == 400
+
+
+def test_camera_editor_save_preserves_latest_retention_setting(app):
+    base, path = app
+    state = validate_project(default_project())
+    state["processing"]["timeout_s"] = 60
+    call(base + "/api/project", state)
+    stale = validate_project(default_project())
+    stale["processing"]["timeout_s"] = 15
+    stale["walls"] = [{"id": "wall", "a": [1, 1], "b": [2, 1]}]
+    reply = json.loads(call(base + "/api/project?preserve_timeout=1", stale)[1])
+    saved = json.loads(path.read_text())
+    assert saved["processing"]["timeout_s"] == 60 and reply["timeout_s"] == 60
+    assert saved["walls"] == stale["walls"]
+    # Already open editor versions may still POST the old full project.
+    request = Request(
+        base + "/api/project",
+        data=json.dumps(stale).encode(),
+        headers={"Content-Type": "application/json", "Referer": base + "/"},
+    )
+    assert urlopen(request).status == 200
+    assert json.loads(path.read_text())["processing"]["timeout_s"] == 60
+    # Explicit changes from processing settings remain possible for controlled experiments.
+    call(base + "/api/project", stale)
+    assert json.loads(path.read_text())["processing"]["timeout_s"] == 15

@@ -128,7 +128,9 @@ def test_recovery_at_timeout_boundary_is_inclusive() -> None:
         observation("cam3", "c", 10.0, (0.99, 0.01)),
     ]
 
-    assignments, _ = AssociationEngine(cameras()).run(observations)
+    assignments, _ = AssociationEngine(cameras(), AssociationConfig(timeout_s=10)).run(
+        observations
+    )
 
     assert ids(assignments) == ["g1", "g1"]
 
@@ -139,7 +141,9 @@ def test_gap_after_timeout_creates_new_id_and_does_not_reuse_closed_id() -> None
         observation("cam3", "c", 10.001, (0.99, 0.01)),
     ]
 
-    assignments, tracks = AssociationEngine(cameras()).run(observations)
+    assignments, tracks = AssociationEngine(
+        cameras(), AssociationConfig(timeout_s=10)
+    ).run(observations)
 
     assert ids(assignments) == ["g1", "g2"]
     assert tracks[0]["end_s"] == 0.0
@@ -291,7 +295,7 @@ def test_graph_ignores_stale_camera_edges():
         observation("b", "b", 18),
         observation("c", "c", 19),
     ]
-    assignments, tracks = AssociationEngine(cams).run(rows)
+    assignments, tracks = AssociationEngine(cams, AssociationConfig(timeout_s=10)).run(rows)
     assert len(tracks) == 2
     assert assignments[-1]["global_track_id"] != assignments[0]["global_track_id"]
 

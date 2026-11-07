@@ -43,6 +43,9 @@ class AssociationEngine:
         self._decision_evidence = {}
         self._gallery_pending = {}
         self.gallery_updates_blocked = 0
+        self.fragment_report = None
+        self.confirmation_report = None
+        self.boundary_provider = None
 
     def run(
         self,
@@ -101,6 +104,18 @@ class AssociationEngine:
 
             assignments, tracks, self.reconciliation_log = reconcile(
                 self, observations, assignments, tracks, exit_events
+            )
+        if self.config.fragment_mode != "off":
+            from .fragments import rebuild_fragments
+
+            assignments, tracks, self.fragment_report = rebuild_fragments(
+                self, observations, assignments, tracks, exit_events
+            )
+        if self.config.confirm_tracks:
+            from .confirmation import annotate_confirmation
+
+            assignments, tracks, self.confirmation_report = annotate_confirmation(
+                observations, assignments, tracks, self.config, self.floor
             )
         return assignments, tracks
 
@@ -353,7 +368,7 @@ class AssociationEngine:
                 if max(start, old_start) <= min(end, old_end):
                     return None
             if gap <= self.config.timeout_s:
-                if plausible_recovery(
+                if gap > 4 or plausible_recovery(
                     track.camera_last_bbox[target], observation.bbox_xyxy, gap
                 ):
                     return "same_camera"

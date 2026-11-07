@@ -28,7 +28,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--decision-mode", choices=["baseline", "balanced"], default="baseline"
     )
-    parser.add_argument("--timeout-s", type=float, default=10.0)
+    parser.add_argument(
+        "--fragment-mode", choices=["off", "boundary", "rebuild"], default="off"
+    )
+    parser.add_argument("--confirm-tracks", action="store_true")
+    parser.add_argument("--confirmation-min-observations", type=int, default=3)
+    parser.add_argument("--confirmation-min-span-s", type=float, default=0.4)
+    parser.add_argument("--confirmation-window-s", type=float, default=1.0)
+    parser.add_argument("--boundary-window-s", type=float, default=2.0)
+    parser.add_argument("--fragment-beam-width", type=int, default=24)
+    parser.add_argument("--timeout-s", type=float, default=60.0)
     parser.add_argument("--similarity-threshold", type=float, default=0.75)
     parser.add_argument("--ambiguity-margin", type=float, default=0.05)
     parser.add_argument("--min-embedding-confidence", type=float, default=0.50)
@@ -45,6 +54,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = AssociationConfig(
         decision_mode=args.decision_mode,
+        fragment_mode=args.fragment_mode,
+        confirm_tracks=args.confirm_tracks,
+        confirmation_min_observations=args.confirmation_min_observations,
+        confirmation_min_span_s=args.confirmation_min_span_s,
+        confirmation_window_s=args.confirmation_window_s,
+        boundary_window_s=args.boundary_window_s,
+        fragment_beam_width=args.fragment_beam_width,
         timeout_s=args.timeout_s,
         adjacency_bonus=args.adjacency_bonus,
         similarity_threshold=args.similarity_threshold,
@@ -71,12 +87,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dumps(
             {
                 "decision_mode": config.decision_mode,
+                "confirmation": engine.confirmation_report,
+                "fragment_graph": {
+                    k: v
+                    for k, v in engine.fragment_report.items()
+                    if k not in {"fragments", "edges", "constraints"}
+                }
+                if engine.fragment_report
+                else None,
                 "gallery_updates_blocked": engine.gallery_updates_blocked,
                 "offline_reconcile": config.offline_reconcile,
                 "tracklet_threshold": config.tracklet_threshold
                 if config.tracklet_threshold is not None
                 else config.similarity_threshold,
                 "merges": engine.reconciliation_log,
+                "merges_scope": "provisional"
+                if config.fragment_mode != "off"
+                else "final",
                 "geolocation": {
                     "enabled": engine.floor is not None,
                     "calibrated_cameras": sorted(engine.floor.calibrations)
@@ -92,6 +119,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         + "\n"
     )
+    if engine.fragment_report is not None:
+        (args.output_dir / "fragment_graph.json").write_text(
+            json.dumps(engine.fragment_report, ensure_ascii=False, indent=2)
+        )
     if args.decision_mode == "balanced":
         selected = {
             (a["camera_id"], a["frame_index"], a["local_track_id"]): a[

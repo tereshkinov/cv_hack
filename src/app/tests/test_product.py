@@ -216,7 +216,7 @@ def test_invalid_processing_options_are_rejected(settings):
         validate_options(settings)
 
 
-@pytest.mark.parametrize("mode", ["reassociate", "balanced"])
+@pytest.mark.parametrize("mode", ["reassociate", "balanced", "tracklets"])
 def test_cached_reassociation_changes_ids_without_video_or_inference(
     tmp_path, monkeypatch, mode
 ):
@@ -337,6 +337,7 @@ def test_cached_reassociation_changes_ids_without_video_or_inference(
         json.dumps(
             {
                 "kind": mode,
+                "experiment_profile": "combined",
                 "source_run_id": "source",
                 "options": DEFAULT_OPTIONS,
             }
@@ -367,9 +368,9 @@ def test_cached_reassociation_changes_ids_without_video_or_inference(
     )
     assert data["reconciliation"]["geolocation"]["enabled"]
     assert data["reconciliation"]["decision_mode"] == (
-        "balanced" if mode == "balanced" else "baseline"
+        "balanced" if mode in {"balanced", "tracklets"} else "baseline"
     )
-    if mode == "balanced":
+    if mode in {"balanced", "tracklets"}:
         assert (derived / "association/decisions.jsonl").exists()
         assert (
             "stale-source-diagnostics"
@@ -380,6 +381,42 @@ def test_cached_reassociation_changes_ids_without_video_or_inference(
     assert (
         source / "association/decisions.jsonl"
     ).read_text() == "stale-source-diagnostics"
+    if mode == "tracklets":
+        assert data["reconciliation"]["confirmation"]["confirmed"] == 1
+        assert data["tracks"][0]["confirmed_at_s"] == pytest.approx(0.4)
+        assert (
+            data["cameras"][0]["frames"][0]["boxes"][0]["observed_state"] == "candidate"
+        )
+        assert "confirmation_state" in (derived / "tracks.csv").read_text()
+        assert "confirmation_state" in (derived / "positions.csv").read_text()
+        assert (derived / "association/fragment_graph.json").is_file()
     assert (source / "association/assignments.jsonl").read_bytes() == before
     assert (derived / "frames/c0_00000000.jpg").read_bytes() == b"cached-jpeg"
     assert json.loads((derived / "status.json").read_text())["status"] == "complete"
+
+
+def test_box_reassignment_removes_stale_candidate_metadata():
+    from src.app.review_data import update_box_assignment
+
+    box = {
+        "global_track_id": "old",
+        "confirmation_state": "candidate",
+        "confirmed_at_s": None,
+        "observed_state": "candidate",
+        "fragment_id": "old-fragment",
+    }
+    update_box_assignment(box, {"global_track_id": "new", "reason": "normal_reid"})
+    assert box == {"global_track_id": "new", "reason": "normal_reid"}
+
+
+def test_unknown_tracklet_profile_is_rejected(tmp_path):
+    manager = Jobs(tmp_path)
+    with pytest.raises(ValueError, match="режим"):
+        manager.start(
+            {"cameras": []},
+            [],
+            {},
+            "tracklets",
+            source_run_id="none",
+            experiment_profile="unknown",
+        )

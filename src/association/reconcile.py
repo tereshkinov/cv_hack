@@ -92,8 +92,9 @@ def reconcile(engine, observations, assignments, tracks, exits):
                     earlier, later = (a, b) if aend < bst else (b, a)
                     tail = max(earlier, key=lambda o: o.timestamp_s)
                     head = min(later, key=lambda o: o.timestamp_s)
-                    if head.timestamp_s > tail.timestamp_s and plausible_recovery(
-                        tail.bbox_xyxy, head.bbox_xyxy, gap
+                    if head.timestamp_s > tail.timestamp_s and (
+                        gap > 4
+                        or plausible_recovery(tail.bbox_xyxy, head.bbox_xyxy, gap)
                     ):
                         relation = "same_camera"
                 elif cb in engine._overlaps[ca]:

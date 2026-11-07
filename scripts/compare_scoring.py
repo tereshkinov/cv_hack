@@ -80,6 +80,12 @@ def compare(baseline, experiment, output, allow_appearance_change=False):
         ).hexdigest(),
         "baseline_tracks": len(ac),
         "experimental_tracks": len(bc),
+        "baseline_confirmation": json.loads(
+            (baseline / "association/reconciliation.json").read_text()
+        ).get("confirmation"),
+        "experimental_confirmation": json.loads(
+            (experiment / "association/reconciliation.json").read_text()
+        ).get("confirmation"),
         "observation_pairs_unlinked": sum(choose2(n) for n in ac.values()) - common,
         "observation_pairs_newly_linked": sum(choose2(n) for n in bc.values()) - common,
         "candidate_decision_reasons": dict(Counter(r["reason"] for r in decisions)),

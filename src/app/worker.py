@@ -45,7 +45,7 @@ def execute(folder):
             prepare(ROOT)
             update(folder, "done", "Модели готовы", "complete")
             return
-        if spec["kind"] in {"projection", "reassociate", "balanced"}:
+        if spec["kind"] in {"projection", "reassociate", "balanced", "tracklets"}:
             from .review_data import reassociate_cached, rebuild_projection
 
             project = json.loads((folder / "project.json").read_text())
@@ -57,18 +57,22 @@ def execute(folder):
             )
             rebuild = (
                 reassociate_cached
-                if spec["kind"] in {"reassociate", "balanced"}
+                if spec["kind"] in {"reassociate", "balanced", "tracklets"}
                 else rebuild_projection
             )
             kwargs = (
                 {
                     "decision_mode": "balanced"
-                    if spec["kind"] == "balanced"
+                    if spec["kind"] in {"balanced", "tracklets"}
                     else "baseline"
                 }
                 if spec["kind"] != "projection"
                 else {}
             )
+            if spec["kind"] == "tracklets":
+                from .jobs import TRACKLET_PROFILES
+
+                kwargs.update(TRACKLET_PROFILES[spec["experiment_profile"]])
             result = rebuild(
                 source, folder, project, cameras, spec["options"], progress, **kwargs
             )
@@ -81,11 +85,24 @@ def execute(folder):
             (folder / "report.md").write_text(
                 f"# Проекция готовых треков\nИсточник: {source.name}.\nНейросети не запускались. Режим: {spec['kind']}. Треков: {len(result['tracks'])}. Калибровано камер: {sum(c['calibrated'] for c in result['cameras'])}. Единицы: {result['coordinate_units']}.\n"
             )
+            confirmation = result.get("reconciliation", {}).get("confirmation")
+            if confirmation:
+                with (folder / "report.md").open("a") as handle:
+                    handle.write(
+                        f"\nПодтверждённых: {confirmation['confirmed']}; неподтверждённых кандидатов: {confirmation['candidates']}. Все наблюдения сохранены.\n"
+                    )
+                update(
+                    folder,
+                    "done",
+                    f"Готово: {confirmation['confirmed']} подтверждённых, {confirmation['candidates']} кандидатов",
+                    "complete",
+                )
+                return
             update(
                 folder,
                 "done",
                 f"Готово: {len(result['tracks'])} треков; режим {spec['kind']}"
-                if spec["kind"] in {"reassociate", "balanced"}
+                if spec["kind"] in {"reassociate", "balanced", "tracklets"}
                 else "Проекция готова: ID сохранены, путь обновлён",
                 "complete",
             )

@@ -13,7 +13,7 @@ DEFAULT_OPTIONS = {
     "device": "cpu",
     "confidence": 0.1,
     "frame_stride": 1,
-    "timeout_s": 15.0,
+    "timeout_s": 60.0,
     "max_duration_s": 180.0,
     "local_buffer_s": 5.0,
     "adjacency_bonus": 0.04,
@@ -65,6 +65,15 @@ def validate_options(options):
     return out
 
 
+TRACKLET_PROFILES = {
+    "confirmation": {"fragment_mode": "off", "confirm_tracks": True},
+    "boundary": {"fragment_mode": "boundary", "confirm_tracks": False},
+    "boundary-confirmation": {"fragment_mode": "boundary", "confirm_tracks": True},
+    "rebuild": {"fragment_mode": "rebuild", "confirm_tracks": False},
+    "combined": {"fragment_mode": "rebuild", "confirm_tracks": True},
+}
+
+
 class Jobs:
     def __init__(self, root, run_root=None):
         self.root = root
@@ -106,14 +115,24 @@ class Jobs:
         results = [self.status(p.parent) for p in self.run_root.glob("*/job.json")]
         return sorted(results, key=lambda job: job["created_at"], reverse=True)
 
-    def start(self, project, cameras, options, kind="pipeline", source_run_id=None):
+    def start(
+        self,
+        project,
+        cameras,
+        options,
+        kind="pipeline",
+        source_run_id=None,
+        experiment_profile=None,
+    ):
         with self.lock:
             if any(p.poll() is None for p in self.processes.values()):
                 raise ValueError(
                     "Уже выполняется обработка. Дождитесь её или остановите запуск."
                 )
             options = validate_options(options)
-            if kind in {"projection", "reassociate", "balanced"}:
+            if kind == "tracklets" and experiment_profile not in TRACKLET_PROFILES:
+                raise ValueError("Выберите корректный режим фрагментов")
+            if kind in {"projection", "reassociate", "balanced", "tracklets"}:
                 from .review_data import validate_projection_source
 
                 source = self.folder(source_run_id)
@@ -128,6 +147,7 @@ class Jobs:
                 "id": folder.name,
                 "kind": kind,
                 "source_run_id": source_run_id,
+                "experiment_profile": experiment_profile,
                 "created_at": time.time(),
                 "options": options,
                 "camera_names": [c["name"] for c in project["cameras"]],

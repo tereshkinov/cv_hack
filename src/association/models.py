@@ -182,7 +182,7 @@ class ExitEvent:
 
 @dataclass(frozen=True, slots=True)
 class AssociationConfig:
-    timeout_s: float = 10.0
+    timeout_s: float = 60.0
     similarity_threshold: float = 0.75
     ambiguity_margin: float = 0.05
     min_embedding_confidence: float = 0.50
@@ -193,8 +193,38 @@ class AssociationConfig:
     tracklet_min_samples: int = 3
     adjacency_bonus: float = 0.04
     decision_mode: str = "baseline"
+    fragment_mode: str = "off"
+    confirm_tracks: bool = False
+    confirmation_min_observations: int = 3
+    confirmation_min_span_s: float = 0.4
+    confirmation_window_s: float = 1.0
+    boundary_window_s: float = 2.0
+    fragment_beam_width: int = 24
 
     def __post_init__(self) -> None:
+        if self.fragment_mode not in {"off", "boundary", "rebuild"}:
+            raise ValueError("fragment_mode must be off, boundary or rebuild")
+        if not isinstance(self.confirm_tracks, bool):
+            raise TypeError("confirm_tracks must be boolean")
+        for name in ["confirmation_min_observations", "fragment_beam_width"]:
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 2:
+                raise ValueError(f"{name} must be an integer >=2")
+        for name in [
+            "confirmation_min_span_s",
+            "confirmation_window_s",
+            "boundary_window_s",
+        ]:
+            value = getattr(self, name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (float, int))
+                or not isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"{name} must be finite and positive")
+        if self.confirmation_min_span_s > self.confirmation_window_s:
+            raise ValueError("confirmation span must fit the window")
         if self.decision_mode not in {"baseline", "balanced"}:
             raise ValueError("decision_mode must be baseline or balanced")
         if not isfinite(self.adjacency_bonus) or not 0 <= self.adjacency_bonus <= 0.15:
