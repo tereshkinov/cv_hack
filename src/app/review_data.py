@@ -308,7 +308,13 @@ def rebuild_projection(
 
 
 def reassociate_cached(
-    source_dir, run_dir, project_snapshot, cameras, options, progress=lambda *a: None
+    source_dir,
+    run_dir,
+    project_snapshot,
+    cameras,
+    options,
+    progress=lambda *a: None,
+    decision_mode="baseline",
 ):
     """Reuse immutable detections/embeddings and JPEGs, but rebuild global IDs."""
     from src.association.cli import main as associate
@@ -316,6 +322,8 @@ def reassociate_cached(
     data = rebuild_projection(
         source_dir, run_dir, project_snapshot, cameras, options, progress
     )
+    # A copied source may have diagnostics from a different decision mode.
+    (run_dir / "association/decisions.jsonl").unlink(missing_ok=True)
     progress("association", "Пересчитываем ID: внешность, граф камер и геометрия пола")
     associate(
         [
@@ -327,6 +335,8 @@ def reassociate_cached(
             str(run_dir / "association"),
             "--project",
             str(run_dir / "project.json"),
+            "--decision-mode",
+            decision_mode,
             "--timeout-s",
             str(options["timeout_s"]),
             "--similarity-threshold",
@@ -371,6 +381,7 @@ def reassociate_cached(
     data["paths"], data["projection_rejected"] = project_paths(
         project_snapshot, data["cameras"], data["options"]
     )
+    data["options"]["decision_mode"] = decision_mode
     data["reassociation_source_run"] = source_dir.name
     save_review(run_dir, data)
     return data

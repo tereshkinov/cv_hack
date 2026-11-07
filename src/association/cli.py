@@ -19,8 +19,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--observations", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--exits", type=Path)
-    parser.add_argument("--project", type=Path, help="Floor calibration project for soft spatial evidence")
+    parser.add_argument(
+        "--project",
+        type=Path,
+        help="Floor calibration project for soft spatial evidence",
+    )
     parser.add_argument("--no-geolocation", action="store_true")
+    parser.add_argument(
+        "--decision-mode", choices=["baseline", "balanced"], default="baseline"
+    )
     parser.add_argument("--timeout-s", type=float, default=10.0)
     parser.add_argument("--similarity-threshold", type=float, default=0.75)
     parser.add_argument("--ambiguity-margin", type=float, default=0.05)
@@ -37,6 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = AssociationConfig(
+        decision_mode=args.decision_mode,
         timeout_s=args.timeout_s,
         adjacency_bonus=args.adjacency_bonus,
         similarity_threshold=args.similarity_threshold,
@@ -51,13 +59,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     cameras = load_cameras(args.cameras)
     observations = load_observations(args.observations)
     exits = load_exit_events(args.exits) if args.exits else []
-    floor_project = json.loads(args.project.read_text()) if args.project and not args.no_geolocation else None
+    floor_project = (
+        json.loads(args.project.read_text())
+        if args.project and not args.no_geolocation
+        else None
+    )
     engine = AssociationEngine(cameras, config, floor_project=floor_project)
     assignments, tracks = engine.run(observations, exits)
     write_results(args.output_dir, assignments, tracks)
     (args.output_dir / "reconciliation.json").write_text(
         json.dumps(
             {
+                "decision_mode": config.decision_mode,
+                "gallery_updates_blocked": engine.gallery_updates_blocked,
                 "offline_reconcile": config.offline_reconcile,
                 "tracklet_threshold": config.tracklet_threshold
                 if config.tracklet_threshold is not None
@@ -65,7 +79,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "merges": engine.reconciliation_log,
                 "geolocation": {
                     "enabled": engine.floor is not None,
-                    "calibrated_cameras": sorted(engine.floor.calibrations) if engine.floor else [],
+                    "calibrated_cameras": sorted(engine.floor.calibrations)
+                    if engine.floor
+                    else [],
                     "statistics": dict(engine.floor.stats) if engine.floor else {},
                 },
             },
@@ -73,6 +89,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         + "\n"
     )
+    if args.decision_mode == "balanced":
+        selected = {
+            (a["camera_id"], a["frame_index"], a["local_track_id"]): a[
+                "global_track_id"
+            ]
+            for a in engine._assignments
+        }
+        for row in engine.decision_log:
+            if row["phase"] == "online":
+                # First-pass decision, before offline remapping of provisional IDs.
+                row["selected_online"] = (
+                    selected.get(
+                        (row["camera_id"], row["frame_index"], row["local_track_id"])
+                    )
+                    == row["candidate_id"]
+                )
+        (args.output_dir / "decisions.jsonl").write_text(
+            "".join(
+                json.dumps(row, ensure_ascii=False) + "\n"
+                for row in engine.decision_log
+            )
+        )
     print(
         json.dumps(
             {

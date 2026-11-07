@@ -39,6 +39,10 @@ class AssociationEngine:
         self._assignments: list[dict[str, object]] = []
         self._next_id = 1
         self.reconciliation_log: list[dict] = []
+        self.decision_log: list[dict] = []
+        self._decision_evidence = {}
+        self._gallery_pending = {}
+        self.gallery_updates_blocked = 0
 
     def run(
         self,
@@ -164,6 +168,11 @@ class AssociationEngine:
                 if self._is_ambiguous(candidates):
                     continue
                 for score, track, reason in candidates:
+                    if (
+                        self.config.decision_mode == "balanced"
+                        and score < self.config.similarity_threshold
+                    ):
+                        continue
                     edges.append(
                         (
                             -score,
@@ -201,13 +210,8 @@ class AssociationEngine:
             topology_reason = self._topology_reason(observation, track)
             if topology_reason is None:
                 continue
-            score = self._appearance_score(observation, track)
-            if score is not None:
-                score = min(
-                    1.0,
-                    score
-                    + self.graph.bonus(topology_reason, self.config.adjacency_bonus),
-                )
+            raw = self._appearance_score(observation, track)
+            score = raw
             geo = (
                 self.floor.online(
                     observation, self._floor_history[track.global_track_id]
@@ -215,17 +219,52 @@ class AssociationEngine:
                 if self.floor
                 else None
             )
-            if geo is not None and score is not None:
-                self.floor.stats["online_evaluations"] += 1
-                # Appearance still needs meaningful support even with a perfect location.
-                score = min(1.0, score + geo) if score >= 0.45 else score
-            if score is not None and score >= self.config.similarity_threshold:
+            if self.config.decision_mode == "balanced" and raw is not None:
+                evidence = self._balanced_evidence(observation, track, raw, geo)
+                score = evidence.score
+                self._decision_evidence[
+                    (observation.reference, track.global_track_id)
+                ] = evidence
+                self.decision_log.append(
+                    {
+                        "phase": "online",
+                        "frame_index": observation.frame_index,
+                        "camera_id": observation.camera_id,
+                        "timestamp_s": observation.timestamp_s,
+                        "local_track_id": observation.local_track_id,
+                        "candidate_id": track.global_track_id,
+                        **evidence.export(),
+                    }
+                )
+            else:
+                if score is not None:
+                    score = min(
+                        1.0,
+                        score
+                        + self.graph.bonus(
+                            topology_reason, self.config.adjacency_bonus
+                        ),
+                    )
+                if geo is not None and score is not None:
+                    self.floor.stats["online_evaluations"] += 1
+                    score = min(1.0, score + geo) if score >= 0.45 else score
+            # Keep near-threshold competitors visible to the ambiguity check.
+            candidate_threshold = self.config.similarity_threshold - (
+                0.12 if self.config.decision_mode == "balanced" else 0
+            )
+            if score is not None and score >= candidate_threshold:
                 candidates.append(
                     (
                         score,
                         track,
                         f"{topology_reason}_reid"
-                        + ("_floor" if geo is not None else ""),
+                        + (
+                            "_balanced"
+                            if self.config.decision_mode == "balanced"
+                            else "_floor"
+                            if geo is not None
+                            else ""
+                        ),
                     )
                 )
             elif (
@@ -236,6 +275,28 @@ class AssociationEngine:
             ):
                 candidates.append((0.0, track, f"{topology_reason}_topology_baseline"))
         return sorted(candidates, key=lambda item: (-item[0], item[1].global_track_id))
+
+    def _balanced_evidence(self, observation, track, raw, geo):
+        from .scoring import appearance_quality, decide, geometry_quality
+
+        relation = self._topology_reason(observation, track)
+        quality = appearance_quality(observation, self.cameras[observation.camera_id])
+        gallery_quality = (
+            fmean(q for q, _ in track.embedding_gallery)
+            if track.embedding_gallery
+            else 0
+        )
+        geo_quality = geometry_quality(self.floor, [observation])
+        history = self._floor_history[track.global_track_id]
+        geo_quality *= 1 if len(history) >= 3 else 0.65
+        return decide(
+            raw,
+            min(quality, gallery_quality),
+            geo,
+            geo_quality,
+            self.graph.bonus(relation, self.config.adjacency_bonus),
+            self.config.similarity_threshold,
+        )
 
     def _is_ambiguous(self, candidates: list[tuple[float, TrackState, str]]) -> bool:
         if len(candidates) < 2:
@@ -332,7 +393,50 @@ class AssociationEngine:
         )
         track.camera_last_bbox[observation.camera_id] = observation.bbox_xyxy
         self._local_to_global[observation.local_key] = track.global_track_id
-        self._update_gallery(track, observation)
+        update_gallery = True
+        evidence = self._decision_evidence.get(
+            (observation.reference, track.global_track_id)
+        )
+        if self.config.decision_mode == "balanced":
+            if (
+                reason != "local_track_continuity"
+                and reason != "new_track"
+                and evidence
+                and not evidence.trusted
+            ):
+                self._gallery_pending[observation.local_key] = {
+                    "gid": track.global_track_id,
+                    "times": [],
+                }
+            pending = self._gallery_pending.get(observation.local_key)
+            if pending and pending["gid"] == track.global_track_id:
+                if evidence is None:
+                    raw = self._appearance_score(observation, track)
+                    geo = (
+                        self.floor.online(
+                            observation, self._floor_history[track.global_track_id]
+                        )
+                        if self.floor
+                        else None
+                    )
+                    if raw is not None:
+                        evidence = self._balanced_evidence(observation, track, raw, geo)
+                times = pending["times"]
+                if evidence and evidence.accepted:
+                    if not times or observation.timestamp_s - times[-1] >= 0.15:
+                        times.append(observation.timestamp_s)
+                else:
+                    times.clear()
+                confirmed = bool(evidence and evidence.trusted) or (
+                    len(times) >= 3 and times[-1] - times[0] >= 0.4 - 1e-9
+                )
+                update_gallery = confirmed
+                if confirmed:
+                    del self._gallery_pending[observation.local_key]
+                else:
+                    self.gallery_updates_blocked += 1
+        if update_gallery:
+            self._update_gallery(track, observation)
         if self.floor:
             point = self.floor.point(observation)
             history = self._floor_history[track.global_track_id]
@@ -352,6 +456,9 @@ class AssociationEngine:
             "global_track_id": track.global_track_id,
             "reason": reason,
         }
+        if self.config.decision_mode == "balanced" and evidence:
+            assignment["decision_evidence"] = evidence.export()
+            assignment["gallery_updated"] = update_gallery
         if score is not None:
             assignment["match_score"] = round(score, 8)
         self._assignments.append(assignment)

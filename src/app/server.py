@@ -262,6 +262,7 @@ class Handler(BaseHTTPRequestHandler):
                     "report.md": "report.md",
                     "performance.json": "performance.json",
                     "reconciliation.json": "association/reconciliation.json",
+                    "decisions.jsonl": "association/decisions.jsonl",
                 }
                 if len(parts) == 5 and parts[3] == "export" and parts[4] in exports:
                     return self.reply(
@@ -384,7 +385,7 @@ class Handler(BaseHTTPRequestHandler):
             if (
                 len(parts) == 4
                 and parts[:2] == ["api", "runs"]
-                and parts[3] in {"project", "reassociate"}
+                and parts[3] in {"project", "reassociate", "balanced"}
             ):
                 project = validate_project(self.json_body()["project"])
                 cameras = camera_manifest(project, self.server.videos(), ROOT)
@@ -394,7 +395,7 @@ class Handler(BaseHTTPRequestHandler):
                     project,
                     cameras,
                     project["processing"],
-                    "projection" if parts[3] == "project" else "reassociate",
+                    "projection" if parts[3] == "project" else parts[3],
                     source_run_id=parts[2],
                 )
                 return self.reply(202, result)

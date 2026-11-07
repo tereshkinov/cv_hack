@@ -113,7 +113,7 @@ class Jobs:
                     "Уже выполняется обработка. Дождитесь её или остановите запуск."
                 )
             options = validate_options(options)
-            if kind in {"projection", "reassociate"}:
+            if kind in {"projection", "reassociate", "balanced"}:
                 from .review_data import validate_projection_source
 
                 source = self.folder(source_run_id)

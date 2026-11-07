@@ -192,8 +192,11 @@ class AssociationConfig:
     tracklet_threshold: float | None = None
     tracklet_min_samples: int = 3
     adjacency_bonus: float = 0.04
+    decision_mode: str = "baseline"
 
     def __post_init__(self) -> None:
+        if self.decision_mode not in {"baseline", "balanced"}:
+            raise ValueError("decision_mode must be baseline or balanced")
         if not isfinite(self.adjacency_bonus) or not 0 <= self.adjacency_bonus <= 0.15:
             raise ValueError("adjacency_bonus must be in [0, 0.15]")
         if (

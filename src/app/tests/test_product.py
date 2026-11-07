@@ -216,8 +216,9 @@ def test_invalid_processing_options_are_rejected(settings):
         validate_options(settings)
 
 
+@pytest.mark.parametrize("mode", ["reassociate", "balanced"])
 def test_cached_reassociation_changes_ids_without_video_or_inference(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, mode
 ):
     from src.app.jobs import DEFAULT_OPTIONS
     from src.app.worker import execute
@@ -328,13 +329,14 @@ def test_cached_reassociation_changes_ids_without_video_or_inference(
             }
         )
     )
+    (source / "association/decisions.jsonl").write_text("stale-source-diagnostics")
     before = (source / "association/assignments.jsonl").read_bytes()
     derived = tmp_path / "derived"
     derived.mkdir()
     (derived / "job.json").write_text(
         json.dumps(
             {
-                "kind": "reassociate",
+                "kind": mode,
                 "source_run_id": "source",
                 "options": DEFAULT_OPTIONS,
             }
@@ -364,6 +366,20 @@ def test_cached_reassociation_changes_ids_without_video_or_inference(
         == 1
     )
     assert data["reconciliation"]["geolocation"]["enabled"]
+    assert data["reconciliation"]["decision_mode"] == (
+        "balanced" if mode == "balanced" else "baseline"
+    )
+    if mode == "balanced":
+        assert (derived / "association/decisions.jsonl").exists()
+        assert (
+            "stale-source-diagnostics"
+            not in (derived / "association/decisions.jsonl").read_text()
+        )
+    else:
+        assert not (derived / "association/decisions.jsonl").exists()
+    assert (
+        source / "association/decisions.jsonl"
+    ).read_text() == "stale-source-diagnostics"
     assert (source / "association/assignments.jsonl").read_bytes() == before
     assert (derived / "frames/c0_00000000.jpg").read_bytes() == b"cached-jpeg"
     assert json.loads((derived / "status.json").read_text())["status"] == "complete"

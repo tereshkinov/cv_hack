@@ -45,7 +45,7 @@ def execute(folder):
             prepare(ROOT)
             update(folder, "done", "Модели готовы", "complete")
             return
-        if spec["kind"] in {"projection", "reassociate"}:
+        if spec["kind"] in {"projection", "reassociate", "balanced"}:
             from .review_data import reassociate_cached, rebuild_projection
 
             project = json.loads((folder / "project.json").read_text())
@@ -57,11 +57,20 @@ def execute(folder):
             )
             rebuild = (
                 reassociate_cached
-                if spec["kind"] == "reassociate"
+                if spec["kind"] in {"reassociate", "balanced"}
                 else rebuild_projection
             )
+            kwargs = (
+                {
+                    "decision_mode": "balanced"
+                    if spec["kind"] == "balanced"
+                    else "baseline"
+                }
+                if spec["kind"] != "projection"
+                else {}
+            )
             result = rebuild(
-                source, folder, project, cameras, spec["options"], progress
+                source, folder, project, cameras, spec["options"], progress, **kwargs
             )
             elapsed = time.perf_counter() - started
             (folder / "performance.json").write_text(
@@ -75,8 +84,8 @@ def execute(folder):
             update(
                 folder,
                 "done",
-                f"Готово: {len(result['tracks'])} треков; ID пересчитаны по полу"
-                if spec["kind"] == "reassociate"
+                f"Готово: {len(result['tracks'])} треков; режим {spec['kind']}"
+                if spec["kind"] in {"reassociate", "balanced"}
                 else "Проекция готова: ID сохранены, путь обновлён",
                 "complete",
             )

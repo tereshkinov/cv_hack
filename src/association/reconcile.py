@@ -123,6 +123,43 @@ def reconcile(engine, observations, assignments, tracks, exits):
                     ]
                 )
                 geo = engine.floor.between(a, b) if engine.floor else None
+                if config.decision_mode == "balanced":
+                    from .scoring import appearance_quality, decide, geometry_quality
+
+                    aq = min(
+                        median(
+                            appearance_quality(o, engine.cameras[o.camera_id])
+                            for o in samples
+                        )
+                        for samples in [ga, gb]
+                    )
+                    gq = min(
+                        geometry_quality(engine.floor, a),
+                        geometry_quality(engine.floor, b),
+                    )
+                    threshold_value = (
+                        config.tracklet_threshold
+                        if config.tracklet_threshold is not None
+                        else config.similarity_threshold
+                    )
+                    decision = decide(
+                        score,
+                        aq,
+                        geo,
+                        gq,
+                        engine.graph.bonus(relation, config.adjacency_bonus),
+                        threshold_value,
+                    )
+                    scores.append(decision.score)
+                    engine.decision_log.append(
+                        {
+                            "phase": "offline",
+                            "left_reference": list(a[0].reference),
+                            "right_reference": list(b[0].reference),
+                            **decision.export(),
+                        }
+                    )
+                    continue
                 if geo is not None and score >= 0.4:
                     engine.floor.stats["offline_evaluations"] += 1
                     score += geo
