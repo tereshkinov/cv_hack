@@ -43,7 +43,13 @@ def project(matrix, points):
     return result
 
 
-def calibrate(video_points, plan_points):
+def calibrate(video_points, plan_points, method="homography"):
+    if method in {"mesh", "piecewise_affine_floor_mesh"}:
+        from src.floor_mesh import calibrate_mesh
+
+        return calibrate_mesh(video_points, plan_points)
+    if method not in {"homography", "four_point_floor_homography"}:
+        raise ValueError("Неизвестный метод привязки")
     source = points4(video_points, "Кадр")
     target = points4(plan_points, "Схема")
     matrix, _ = cv2.findHomography(source, target, method=0)

@@ -64,8 +64,22 @@ def fragments_from_observations(observations, config, exits):
                     previous.timestamp_s <= t < o.timestamp_s for t in events[key]
                 ):
                     split = "explicit_exit"
-                elif i + 1 < len(rows) and not plausible_recovery(
-                    previous.bbox_xyxy, o.bbox_xyxy, gap
+                elif (
+                    config.decision_mode == "geometry"
+                    and gap <= 1
+                    and i + 1 < len(rows)
+                    and not plausible_recovery(previous.bbox_xyxy, o.bbox_xyxy, gap)
+                    and not plausible_recovery(
+                        previous.bbox_xyxy,
+                        rows[i + 1].bbox_xyxy,
+                        rows[i + 1].timestamp_s - previous.timestamp_s,
+                    )
+                ):
+                    split = "sustained_geometry_jump"
+                elif (
+                    config.decision_mode != "geometry"
+                    and i + 1 < len(rows)
+                    and not plausible_recovery(previous.bbox_xyxy, o.bbox_xyxy, gap)
                 ):
                     future = rows[i + 1]
                     # Require both a sustained box jump and independent appearance support.

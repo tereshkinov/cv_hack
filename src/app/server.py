@@ -115,8 +115,8 @@ def validate_project(project):
                 raise ValueError(f"Некорректное значение {field}")
         for key in ["video_points", "plan_points"]:
             values = camera.get(key, [])
-            if not isinstance(values, list) or len(values) > 4:
-                raise ValueError("Можно задать не более четырёх точек каждой стороны")
+            if not isinstance(values, list) or len(values) > 128:
+                raise ValueError("Можно задать не более 128 точек каждой стороны")
             for value in values:
                 point(value)
         plans = camera.get("plan_points", [])
@@ -124,7 +124,24 @@ def validate_project(project):
             raise ValueError("Опорная точка выходит за границы схемы")
         # Recompute, never trust an imported arbitrary transformation matrix.
         if camera.get("calibration") is not None:
-            camera["calibration"] = calibrate(camera.get("video_points"), plans)
+            camera["calibration"] = calibrate(
+                camera.get("video_points"),
+                plans,
+                camera.get(
+                    "calibration_method",
+                    camera["calibration"].get("method", "homography"),
+                ),
+            )
+        checks = camera.get("validation_points", [])
+        if not isinstance(checks, list) or len(checks) > 64:
+            raise ValueError("Не более 64 контрольных точек")
+        for check in checks:
+            if not isinstance(check, dict):
+                raise TypeError("Некорректная контрольная точка")
+            point(check.get("video_point"))
+            q = point(check.get("plan_point"))
+            if not (0 <= q[0] <= width and 0 <= q[1] <= height):
+                raise ValueError("Контрольная точка вне схемы")
     camera_ids = {c["id"] for c in cameras}
     for camera in cameras:
         offset = number(camera.get("time_offset_s", 0))
@@ -436,10 +453,20 @@ class Handler(BaseHTTPRequestHandler):
                 and parts[3] == "cancel"
             ):
                 return self.reply(200, self.server.jobs.cancel(parts[2]))
+            if route.path == "/api/floor-coverage":
+                from src.floor_mesh import overlap_report
+
+                project = validate_project(self.json_body()["project"])
+                return self.reply(200, {"overlaps": overlap_report(project)})
             if route.path == "/api/calibrate":
                 body = self.json_body()
                 return self.reply(
-                    200, calibrate(body.get("video_points"), body.get("plan_points"))
+                    200,
+                    calibrate(
+                        body.get("video_points"),
+                        body.get("plan_points"),
+                        body.get("method", "homography"),
+                    ),
                 )
             if route.path == "/api/project":
                 project = validate_project(self.json_body())

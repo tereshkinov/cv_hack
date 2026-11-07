@@ -9,8 +9,9 @@ from pathlib import Path
 
 import cv2
 
+from src.floor_mesh import project_calibration
+
 from .fusion import fuse_positions, smooth_paths
-from .geometry import project
 
 OPTIONAL_ASSIGNMENT_FIELDS = (
     "confirmation_state",
@@ -175,6 +176,8 @@ def project_paths(project_snapshot, manifest, options):
             times = frame_times[camera["camera_id"]]
             pos = bisect_left(times, t)
             indices = [k for k in [pos - 1, pos] if 0 <= k < len(times)]
+            if not indices:
+                continue
             idx = min(indices, key=lambda k: abs(times[k] - t))
             fr = camera["frames"][idx]
             if abs(fr["timestamp_s"] - t) > 1.1 / fps:
@@ -184,8 +187,11 @@ def project_paths(project_snapshot, manifest, options):
                 continue
             for box in fr["boxes"]:
                 x1, _y1, x2, y2 = box["bbox_xyxy"]
+                if camera.get("height") and y2 >= camera["height"] * .985:
+                    rejected += 1
+                    continue
                 try:
-                    x, y = project(calibration["matrix"], [[(x1 + x2) / 2, y2]])[0]
+                    x, y = project_calibration(calibration, [[(x1 + x2) / 2, y2]])[0]
                 except ValueError:
                     rejected += 1
                     continue

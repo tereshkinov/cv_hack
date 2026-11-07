@@ -123,3 +123,39 @@ def test_camera_editor_save_preserves_latest_retention_setting(app):
     # Explicit changes from processing settings remain possible for controlled experiments.
     call(base + "/api/project", stale)
     assert json.loads(path.read_text())["processing"]["timeout_s"] == 15
+
+
+def test_mesh_api_accepts_extra_anchors_and_computes_floor_coverage(app):
+    from src.app.tests.test_floor_mesh import grid
+
+    base, _ = app
+    video, plan = grid()
+    status, raw = call(
+        base + "/api/calibrate",
+        {"video_points": video, "plan_points": plan, "method": "mesh"},
+    )
+    calibration = json.loads(raw)
+    assert status == 200 and len(calibration["triangles"]) == 8
+    project = default_project()
+    project["cameras"] = [
+        {
+            "id": cid,
+            "name": cid,
+            "position": [1, 1],
+            "height_m": 2,
+            "yaw_deg": 0,
+            "fov_deg": 60,
+            "range_m": 5,
+            "video_points": video,
+            "plan_points": plan,
+            "calibration_method": "mesh",
+            "calibration": calibration,
+        }
+        for cid in ["a", "b"]
+    ]
+    status, raw = call(base + "/api/floor-coverage", {"project": project})
+    assert status == 200 and len(json.loads(raw)["overlaps"]) == 1
+    assert call(base + "/api/project", project)[0] == 200
+    saved = json.loads(call(base + "/api/project")[1])
+    assert saved["cameras"][0]["video_points"] == video
+    assert saved["cameras"][0]["calibration"]["method"] == "piecewise_affine_floor_mesh"

@@ -216,7 +216,7 @@ def test_invalid_processing_options_are_rejected(settings):
         validate_options(settings)
 
 
-@pytest.mark.parametrize("mode", ["reassociate", "balanced", "tracklets"])
+@pytest.mark.parametrize("mode", ["reassociate", "balanced", "tracklets", "geometry"])
 def test_cached_reassociation_changes_ids_without_video_or_inference(
     tmp_path, monkeypatch, mode
 ):
@@ -336,8 +336,8 @@ def test_cached_reassociation_changes_ids_without_video_or_inference(
     (derived / "job.json").write_text(
         json.dumps(
             {
-                "kind": mode,
-                "experiment_profile": "combined",
+                "kind": "tracklets" if mode == "geometry" else mode,
+                "experiment_profile": "geometry" if mode == "geometry" else "combined",
                 "source_run_id": "source",
                 "options": DEFAULT_OPTIONS,
             }
@@ -368,7 +368,7 @@ def test_cached_reassociation_changes_ids_without_video_or_inference(
     )
     assert data["reconciliation"]["geolocation"]["enabled"]
     assert data["reconciliation"]["decision_mode"] == (
-        "balanced" if mode in {"balanced", "tracklets"} else "baseline"
+        "balanced" if mode in {"balanced", "tracklets"} else "geometry"
     )
     if mode in {"balanced", "tracklets"}:
         assert (derived / "association/decisions.jsonl").exists()
@@ -381,7 +381,7 @@ def test_cached_reassociation_changes_ids_without_video_or_inference(
     assert (
         source / "association/decisions.jsonl"
     ).read_text() == "stale-source-diagnostics"
-    if mode == "tracklets":
+    if mode in {"tracklets", "geometry"}:
         assert data["reconciliation"]["confirmation"]["confirmed"] == 1
         assert data["tracks"][0]["confirmed_at_s"] == pytest.approx(0.4)
         assert (

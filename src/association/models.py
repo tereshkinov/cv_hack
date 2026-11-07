@@ -226,8 +226,8 @@ class AssociationConfig:
                 raise ValueError(f"{name} must be finite and positive")
         if self.confirmation_min_span_s > self.confirmation_window_s:
             raise ValueError("confirmation span must fit the window")
-        if self.decision_mode not in {"baseline", "balanced"}:
-            raise ValueError("decision_mode must be baseline or balanced")
+        if self.decision_mode not in {"baseline", "balanced", "geometry"}:
+            raise ValueError("decision_mode must be baseline, balanced or geometry")
         if not isfinite(self.adjacency_bonus) or not 0 <= self.adjacency_bonus <= 0.15:
             raise ValueError("adjacency_bonus must be in [0, 0.15]")
         if (

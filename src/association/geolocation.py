@@ -122,6 +122,14 @@ class FloorMatcher:
         )
         self.sync_uncertainty_configured = "sync_uncertainty_s" in processing
         self.sync_verified = bool(processing.get("sync_verified", False))
+        from src.floor_mesh import validation_report
+
+        self.calibration_checks = {
+            cid: validation_report(
+                cal, self.project_cameras[cid].get("validation_points", [])
+            )
+            for cid, cal in self.calibrations.items()
+        }
         self.cache: dict[tuple[str, int, str], tuple[float, float] | None] = {}
         self._projection_details: dict[tuple[str, int, str], ProjectionResult] = {}
         self.stats = Counter()
@@ -140,6 +148,15 @@ class FloorMatcher:
         x, y = video_point
         if not _finite_pair((x, y)):
             return self._projection(camera_id, None, 0.0, "invalid_video_point")
+        if calibration.get("method") == "piecewise_affine_floor_mesh":
+            from src.floor_mesh import map_point
+
+            point, quality, reason = map_point(calibration, (x, y), extrapolate=True)
+            if point is not None and not (
+                0 <= point[0] <= self.width and 0 <= point[1] <= self.height
+            ):
+                point, quality, reason = None, 0.0, "outside_plan"
+            return self._projection(camera_id, point, quality, reason)
         matrix = _matrix3(calibration.get("matrix"))
         if matrix is None:
             return self._projection(camera_id, None, 0.0, "invalid_matrix")

@@ -11,6 +11,7 @@ from threading import Lock
 
 DEFAULT_OPTIONS = {
     "device": "cpu",
+    "association_mode": "geometry",
     "confidence": 0.1,
     "frame_stride": 1,
     "timeout_s": 60.0,
@@ -62,12 +63,15 @@ def validate_options(options):
             or not low <= out[key] <= high
         ):
             raise ValueError(f"Некорректная настройка {key}")
+    if out["association_mode"] not in {"geometry", "baseline", "balanced"}:
+        raise ValueError("Неизвестный режим сопоставления")
     if out["device"] not in {"cpu", "mps", "0"}:
         raise ValueError("Устройство: cpu, mps или 0 (CUDA)")
     return out
 
 
 TRACKLET_PROFILES = {
+    "geometry": {"fragment_mode": "rebuild", "confirm_tracks": True, "decision_mode": "geometry"},
     "confirmation": {"fragment_mode": "off", "confirm_tracks": True},
     "boundary": {"fragment_mode": "boundary", "confirm_tracks": False},
     "boundary-confirmation": {"fragment_mode": "boundary", "confirm_tracks": True},

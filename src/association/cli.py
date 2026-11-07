@@ -26,7 +26,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--no-geolocation", action="store_true")
     parser.add_argument(
-        "--decision-mode", choices=["baseline", "balanced"], default="baseline"
+        "--decision-mode",
+        choices=["baseline", "balanced", "geometry"],
+        default="baseline",
     )
     parser.add_argument(
         "--fragment-mode", choices=["off", "boundary", "rebuild"], default="off"
@@ -112,6 +114,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "calibrated_cameras": sorted(engine.floor.calibrations)
                     if engine.floor
                     else [],
+                    "calibration_checks": engine.floor.calibration_checks
+                    if engine.floor
+                    else {},
                     "statistics": dict(engine.floor.stats) if engine.floor else {},
                     "projection_report": engine.floor.projection_report(observations)
                     if engine.floor
