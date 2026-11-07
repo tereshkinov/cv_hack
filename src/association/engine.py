@@ -26,6 +26,13 @@ class AssociationEngine:
             raise ValueError("at least one camera is required")
         self._validate_camera_links()
         self.config = config or AssociationConfig()
+        self.scene_project = floor_project or {}
+        from .handoff_portals import validate_portals
+
+        validate_portals(
+            self.scene_project.get("handoff_portals", []), set(self.cameras)
+        )
+        self.scene_report = None
         self.floor = None
         self.route_model = None
         self.boundary_geometry = None
@@ -84,9 +91,49 @@ class AssociationEngine:
                 raise ValueError(f"unknown camera_id in exit event: {event.camera_id}")
             grouped_exits[event.timestamp_s].append(event)
 
-        if self.config.decision_mode in {"geometry", "geometry_visual", "geometry_ambiguity"}:
+        if self.config.decision_mode in {
+            "geometry",
+            "geometry_visual",
+            "geometry_ambiguity",
+        }:
             from .geometry_tracking import associate_geometry
-            assignments, tracks = associate_geometry(self, observations, exit_events)
+
+            selected_observations = observations
+            rejected = []
+            zone_report = {}
+            if self.config.filter_scene:
+                from .scene_filter import select_floor_observations
+
+                selected_observations, rejected, zone_report = (
+                    select_floor_observations(
+                        observations, self.scene_project, self.cameras
+                    )
+                )
+            assignments, tracks = associate_geometry(
+                self, selected_observations, exit_events
+            )
+            if self.config.filter_scene:
+                from .scene_filter import finish_scene_filter
+
+                assignments, tracks, self.scene_report = finish_scene_filter(
+                    observations, assignments, tracks, rejected, zone_report
+                )
+                if self.confirmation_report is not None:
+                    self.confirmation_report.update(
+                        confirmed=sum(
+                            t.get("confirmation_state") == "confirmed" for t in tracks
+                        ),
+                        candidates=sum(
+                            t.get("confirmation_state") == "candidate" for t in tracks
+                        ),
+                        suppressed=sum(
+                            t.get("scene_state") == "suppressed" for t in tracks
+                        ),
+                        candidate_observations=sum(
+                            a.get("confirmation_state") == "candidate"
+                            for a in assignments
+                        ),
+                    )
             self._assignments = assignments
             return assignments, tracks
 

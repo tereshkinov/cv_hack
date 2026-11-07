@@ -381,6 +381,8 @@ def rebuild_fragments(engine, observations, assignments, tracks, exits):
                             "left": a.fragment_id,
                             "right": b.fragment_id,
                             "reason": "simultaneous_geometry_unavailable",
+                            "evidence_reason": details.get("reason"),
+                            "handoff": details.get("handoff"),
                         }
                     )
                 continue

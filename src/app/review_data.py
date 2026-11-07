@@ -14,6 +14,9 @@ from src.floor_mesh import project_calibration
 from .fusion import fuse_positions, smooth_paths
 
 OPTIONAL_ASSIGNMENT_FIELDS = (
+    "scene_state",
+    "scene_reason",
+    "pre_stitch_global_track_id",
     "confirmation_state",
     "confirmed_at_s",
     "observed_state",
@@ -186,8 +189,10 @@ def project_paths(project_snapshot, manifest, options):
             if not calibration:
                 continue
             for box in fr["boxes"]:
+                if box.get("scene_state") == "suppressed":
+                    continue
                 x1, _y1, x2, y2 = box["bbox_xyxy"]
-                if camera.get("height") and y2 >= camera["height"] * .985:
+                if camera.get("height") and y2 >= camera["height"] * 0.985:
                     rejected += 1
                     continue
                 try:
@@ -211,6 +216,9 @@ def project_paths(project_snapshot, manifest, options):
             point = fuse_positions(positions, options.get("fusion_distance_m", 2))
             paths[gid].append({"timestamp_s": t, **point})
     smooth_paths(paths, options.get("smoothing_tau_s", 0.25))
+    from src.metric_scale import annotate_speeds
+
+    annotate_speeds(paths, project_snapshot)
     return dict(paths), rejected
 
 
@@ -238,13 +246,18 @@ def save_review(run_dir, output):
                     if any("confirmation_state" in t for t in tracks)
                     else []
                 ),
+                *(
+                    ["scene_state", "scene_reason"]
+                    if any("scene_state" in t for t in tracks)
+                    else []
+                ),
             ],
         )
         writer.writeheader()
         for t in tracks:
             writer.writerow(
                 {
-                    k: ",".join(t[k]) if k == "camera_ids" else t[k]
+                    k: ",".join(t[k]) if k == "camera_ids" else t.get(k, "")
                     for k in writer.fieldnames
                 }
             )
@@ -257,6 +270,9 @@ def save_review(run_dir, output):
                 "x",
                 "y",
                 "coordinate_units",
+                "speed_m_s",
+                "speed_uncertainty_m_s",
+                "speed_approximate",
                 *(["confirmation_state"] if has_confirmation else []),
                 "status",
                 "camera_ids",
@@ -273,6 +289,14 @@ def save_review(run_dir, output):
                             if has_confirmation
                             else {}
                         ),
+                        **{
+                            k: point.get(k, "")
+                            for k in (
+                                "speed_m_s",
+                                "speed_uncertainty_m_s",
+                                "speed_approximate",
+                            )
+                        },
                         "x": point["x_m"],
                         "y": point["y_m"],
                         "coordinate_units": output.get("coordinate_units", "meters"),
@@ -356,6 +380,9 @@ def reassociate_cached(
     decision_mode="baseline",
     fragment_mode="off",
     confirm_tracks=False,
+    stitch_short_tracks=False,
+    filter_scene=False,
+    trajectory_handoffs=False,
 ):
     """Reuse immutable detections/embeddings and JPEGs, but rebuild global IDs."""
     from src.association.cli import main as associate
@@ -382,6 +409,9 @@ def reassociate_cached(
             "--fragment-mode",
             fragment_mode,
             *(["--confirm-tracks"] if confirm_tracks else []),
+            *(["--stitch-short-tracks"] if stitch_short_tracks else []),
+            *(["--filter-scene"] if filter_scene else []),
+            *(["--trajectory-handoffs"] if trajectory_handoffs else []),
             "--timeout-s",
             str(options["timeout_s"]),
             "--similarity-threshold",
@@ -431,6 +461,9 @@ def reassociate_cached(
     data["options"]["decision_mode"] = decision_mode
     data["options"]["fragment_mode"] = fragment_mode
     data["options"]["confirm_tracks"] = confirm_tracks
+    data["options"]["stitch_short_tracks"] = stitch_short_tracks
+    data["options"]["filter_scene"] = filter_scene
+    data["options"]["trajectory_handoffs"] = trajectory_handoffs
     data["reassociation_source_run"] = source_dir.name
     save_review(run_dir, data)
     return data

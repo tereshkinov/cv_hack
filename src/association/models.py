@@ -194,6 +194,9 @@ class AssociationConfig:
     adjacency_bonus: float = 0.04
     decision_mode: str = "baseline"
     fragment_mode: str = "off"
+    trajectory_handoffs: bool = False
+    filter_scene: bool = False
+    stitch_short_tracks: bool = False
     confirm_tracks: bool = False
     confirmation_min_observations: int = 3
     confirmation_min_span_s: float = 0.4
@@ -206,6 +209,26 @@ class AssociationConfig:
     def __post_init__(self) -> None:
         if self.fragment_mode not in {"off", "boundary", "rebuild"}:
             raise ValueError("fragment_mode must be off, boundary or rebuild")
+        if not isinstance(self.trajectory_handoffs, bool):
+            raise TypeError("trajectory_handoffs must be boolean")
+        if self.trajectory_handoffs and self.decision_mode != "geometry_ambiguity":
+            raise ValueError("trajectory handoffs require geometry_ambiguity")
+        if not isinstance(self.filter_scene, bool):
+            raise TypeError("filter_scene must be boolean")
+        if self.filter_scene and self.decision_mode not in {
+            "geometry",
+            "geometry_visual",
+            "geometry_ambiguity",
+        }:
+            raise ValueError("scene filtering requires a geometry decision mode")
+        if not isinstance(self.stitch_short_tracks, bool):
+            raise TypeError("stitch_short_tracks must be boolean")
+        if self.stitch_short_tracks and self.decision_mode not in {
+            "geometry",
+            "geometry_visual",
+            "geometry_ambiguity",
+        }:
+            raise ValueError("short stitching requires a geometry decision mode")
         if not isinstance(self.confirm_tracks, bool):
             raise TypeError("confirm_tracks must be boolean")
         for name in ["confirmation_min_observations", "fragment_beam_width"]:

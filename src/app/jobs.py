@@ -77,6 +77,27 @@ def validate_options(options):
 
 
 TRACKLET_PROFILES = {
+    "trajectory-handoffs": {
+        "fragment_mode": "rebuild",
+        "confirm_tracks": True,
+        "decision_mode": "geometry_ambiguity",
+        "stitch_short_tracks": True,
+        "filter_scene": True,
+        "trajectory_handoffs": True,
+    },
+    "scene-filter": {
+        "fragment_mode": "rebuild",
+        "confirm_tracks": True,
+        "decision_mode": "geometry_ambiguity",
+        "stitch_short_tracks": True,
+        "filter_scene": True,
+    },
+    "short-stitch": {
+        "fragment_mode": "rebuild",
+        "confirm_tracks": True,
+        "decision_mode": "geometry_ambiguity",
+        "stitch_short_tracks": True,
+    },
     "geometry-only": {
         "fragment_mode": "rebuild",
         "confirm_tracks": True,

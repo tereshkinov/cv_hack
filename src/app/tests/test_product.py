@@ -424,6 +424,8 @@ def test_box_reassignment_removes_stale_candidate_metadata():
         "confirmed_at_s": None,
         "observed_state": "candidate",
         "fragment_id": "old-fragment",
+        "scene_state": "suppressed",
+        "scene_reason": "outside_floor_zone",
     }
     update_box_assignment(box, {"global_track_id": "new", "reason": "normal_reid"})
     assert box == {"global_track_id": "new", "reason": "normal_reid"}

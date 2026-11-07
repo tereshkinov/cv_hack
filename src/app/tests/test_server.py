@@ -204,3 +204,116 @@ def test_tracking_settings_update_preserves_latest_user_calibration(app):
     with pytest.raises(HTTPError):
         call(base + "/api/tracking-settings", {"floor_prediction": "invalid"})
     assert path.read_bytes() == before
+
+
+def test_floor_filter_validation_and_project_roundtrip(app):
+    base, _ = app
+    settings = {
+        "mode": "polygon",
+        "allowed_polygon": [[10, 10], [90, 10], [90, 90], [10, 90]],
+        "excluded_polygons": [[[30, 30], [40, 30], [40, 40], [30, 40]]],
+    }
+    assert (
+        json.loads(call(base + "/api/validate-floor-filter", settings)[1]) == settings
+    )
+    state = default_project()
+    state["cameras"] = [
+        {
+            "id": "a",
+            "name": "Camera",
+            "position": [1, 1],
+            "height_m": 2.5,
+            "yaw_deg": 0,
+            "fov_deg": 60,
+            "range_m": 5,
+            "floor_filter": settings,
+        }
+    ]
+    assert call(base + "/api/project", state)[0] == 200
+    assert (
+        json.loads(call(base + "/api/project")[1])["cameras"][0]["floor_filter"]
+        == settings
+    )
+    with pytest.raises(HTTPError) as error:
+        call(
+            base + "/api/validate-floor-filter",
+            {
+                "mode": "polygon",
+                "allowed_polygon": [[0, 0], [10, 10], [0, 10], [10, 0]],
+            },
+        )
+    assert error.value.code == 400
+    state["cameras"][0]["floor_filter"] = {"mode": "polygon", "allowed_polygon": []}
+    with pytest.raises(HTTPError):
+        call(base + "/api/project", state)
+    assert (
+        json.loads(call(base + "/api/project")[1])["cameras"][0]["floor_filter"]
+        == settings
+    )
+
+
+def test_metric_scale_atomic_update_preserves_camera_payload(app):
+    base, path = app
+    state = default_project()
+    state["cameras"] = [
+        {
+            "id": "a",
+            "name": "Camera",
+            "position": [1, 1],
+            "height_m": 2.5,
+            "yaw_deg": 0,
+            "fov_deg": 60,
+            "range_m": 5,
+            "video_points": [[1, 1], [9, 1], [9, 9], [1, 9]],
+            "plan_points": [[1, 1], [2, 1], [2, 2], [1, 2]],
+            "floor_filter": {"mode": "off"},
+        }
+    ]
+    call(base + "/api/project", state)
+    before = json.loads(path.read_text())["cameras"]
+    metric = {
+        "meters_per_unit": 4.21,
+        "uncertainty_fraction": 0.15,
+        "approximate": True,
+    }
+    assert call(base + "/api/metric-scale", metric)[0] == 200
+    after = json.loads(path.read_text())
+    assert after["cameras"] == before and after["metric_scale"] == metric
+    # An editor opened before scale integration must not silently remove it.
+    call(base + "/api/project?preserve_timeout=1", state)
+    assert json.loads(path.read_text())["metric_scale"] == metric
+    with pytest.raises(HTTPError):
+        call(base + "/api/metric-scale", {"meters_per_unit": -2})
+    assert json.loads(path.read_text())["metric_scale"] == metric
+
+
+def test_handoff_portals_update_preserves_manual_camera_payload(app):
+    from src.association.tests.test_handoff_portals import configuration
+
+    base, path = app
+    state = default_project()
+    state["cameras"] = [
+        {
+            "id": cid,
+            "name": cid,
+            "position": [1, 1],
+            "height_m": 2.5,
+            "yaw_deg": 0,
+            "fov_deg": 60,
+            "range_m": 5,
+            "video_points": [[1, 1], [9, 1], [9, 9], [1, 9]],
+            "plan_points": [[1, 1], [2, 1], [2, 2], [1, 2]],
+        }
+        for cid in ["a", "b"]
+    ]
+    call(base + "/api/project", state)
+    before = json.loads(path.read_text())["cameras"]
+    portals = configuration()
+    assert call(base + "/api/handoff-portals", {"portals": portals})[0] == 200
+    after = json.loads(path.read_text())
+    assert after["cameras"] == before and after["handoff_portals"] == portals
+    call(base + "/api/project?preserve_timeout=1", state)
+    assert json.loads(path.read_text())["handoff_portals"] == portals
+    with pytest.raises(HTTPError):
+        call(base + "/api/handoff-portals", {"portals": [{"id": "invalid"}]})
+    assert json.loads(path.read_text())["handoff_portals"] == portals

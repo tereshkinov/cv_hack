@@ -39,6 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fragment-mode", choices=["off", "boundary", "rebuild"], default="off"
     )
+    parser.add_argument("--trajectory-handoffs", action="store_true")
+    parser.add_argument("--filter-scene", action="store_true")
+    parser.add_argument("--stitch-short-tracks", action="store_true")
     parser.add_argument("--confirm-tracks", action="store_true")
     parser.add_argument("--confirmation-min-observations", type=int, default=3)
     parser.add_argument("--confirmation-min-span-s", type=float, default=0.4)
@@ -66,6 +69,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         decision_mode=args.decision_mode,
         fragment_mode=args.fragment_mode,
         confirm_tracks=args.confirm_tracks,
+        stitch_short_tracks=args.stitch_short_tracks,
+        filter_scene=args.filter_scene,
+        trajectory_handoffs=args.trajectory_handoffs,
         confirmation_min_observations=args.confirmation_min_observations,
         confirmation_min_span_s=args.confirmation_min_span_s,
         confirmation_window_s=args.confirmation_window_s,
@@ -101,6 +107,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "decision_mode": config.decision_mode,
                 "geometry_visual_weight": config.geometry_visual_weight,
                 "confirmation": engine.confirmation_report,
+                "scene_filter": engine.scene_report,
                 "fragment_graph": {
                     k: v
                     for k, v in engine.fragment_report.items()
@@ -178,7 +185,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dumps(
             {
                 "assignments": len(assignments),
-                "global_tracks": len(tracks),
+                "global_tracks": sum(
+                    t.get("scene_state") != "suppressed" for t in tracks
+                ),
+                "filtered_episodes": sum(
+                    t.get("scene_state") == "suppressed" for t in tracks
+                ),
                 "output_dir": str(args.output_dir),
             },
             ensure_ascii=False,

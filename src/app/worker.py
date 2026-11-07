@@ -92,6 +92,14 @@ def execute(folder):
             (folder / "report.md").write_text(
                 f"# Проекция готовых треков\nИсточник: {source.name}.\nНейросети не запускались. Режим: {spec['kind']}. Треков: {len(result['tracks'])}. Калибровано камер: {sum(c['calibrated'] for c in result['cameras'])}. Единицы: {result['coordinate_units']}.\n"
             )
+            scene = result.get("reconciliation", {}).get("scene_filter")
+            if scene:
+                with (folder / "report.md").open("a") as handle:
+                    handle.write(
+                        f"\nЗоны пола: {scene['rejected_observations']} наблюдений вне разрешённой области. "
+                        f"Скрыто неподвижных кандидатов: {scene['stationary_suppressed']}. "
+                        "Все исходные наблюдения сохранены; фильтр можно проверить в просмотре.\n"
+                    )
             confirmation = result.get("reconciliation", {}).get("confirmation")
             if confirmation:
                 with (folder / "report.md").open("a") as handle:

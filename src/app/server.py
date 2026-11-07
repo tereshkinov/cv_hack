@@ -47,6 +47,9 @@ def validate_project(project):
             raise ValueError("Координаты и размеры должны быть конечными числами")
         return x
 
+    from src.metric_scale import scale_info
+
+    scale_info(project)
     if project.get("floor_prediction", "heuristic") not in {"kalman", "heuristic"}:
         raise ValueError("Прогноз пола: heuristic или kalman")
     units = project.get("coordinate_units", "meters")
@@ -134,6 +137,9 @@ def validate_project(project):
                     camera["calibration"].get("method", "homography"),
                 ),
             )
+        from src.association.scene_filter import validate_floor_filter
+
+        validate_floor_filter(camera.get("floor_filter", {}))
         checks = camera.get("validation_points", [])
         if not isinstance(checks, list) or len(checks) > 64:
             raise ValueError("Не более 64 контрольных точек")
@@ -156,6 +162,9 @@ def validate_project(project):
                 for v in links
             ):
                 raise ValueError("Некорректная связь камер")
+    from src.association.handoff_portals import validate_portals
+
+    validate_portals(project.get("handoff_portals", []), camera_ids)
     project["processing"] = validate_options(project.get("processing", {}))
     return project
 
@@ -376,6 +385,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         route = urlparse(self.path)
         try:
+            if route.path == "/api/validate-floor-filter":
+                from src.association.scene_filter import validate_floor_filter
+
+                return self.reply(200, validate_floor_filter(self.json_body()))
             if route.path == "/api/plan-upload":
                 import uuid
 
@@ -470,6 +483,53 @@ class Handler(BaseHTTPRequestHandler):
                         body.get("method", "homography"),
                     ),
                 )
+            if route.path == "/api/handoff-portals":
+                from src.association.handoff_portals import validate_portals
+
+                portals = self.json_body().get("portals")
+                path = self.server.project_path
+                with self.server.save_lock:
+                    project = (
+                        json.loads(path.read_text())
+                        if path.exists()
+                        else default_project()
+                    )
+                    validate_portals(portals, {c["id"] for c in project["cameras"]})
+                    project["handoff_portals"] = portals
+                    temporary = path.with_suffix(".tmp")
+                    temporary.write_text(
+                        json.dumps(project, ensure_ascii=False, indent=2) + "\n"
+                    )
+                    temporary.replace(path)
+                return self.reply(200, {"saved": True, "count": len(portals)})
+            if route.path == "/api/metric-scale":
+                from src.metric_scale import scale_info
+
+                body = self.json_body()
+                scale = scale_info(
+                    {"coordinate_units": "relative", "metric_scale": body}
+                )
+                if scale is None:
+                    raise ValueError("Нужен метрический масштаб")
+                path = self.server.project_path
+                with self.server.save_lock:
+                    project = (
+                        json.loads(path.read_text())
+                        if path.exists()
+                        else default_project()
+                    )
+                    project["metric_scale"] = body
+                    if project.get("motion_model"):
+                        project["motion_model"]["meters_per_unit"] = scale[
+                            "meters_per_unit"
+                        ]
+                        project["motion_model"]["provisional"] = scale["approximate"]
+                    temporary = path.with_suffix(".tmp")
+                    temporary.write_text(
+                        json.dumps(project, ensure_ascii=False, indent=2) + "\n"
+                    )
+                    temporary.replace(path)
+                return self.reply(200, {"saved": True, **scale})
             if route.path == "/api/tracking-settings":
                 body = self.json_body()
                 if (
@@ -523,6 +583,19 @@ class Handler(BaseHTTPRequestHandler):
                             and "floor_prediction" in saved
                         ):
                             project["floor_prediction"] = saved["floor_prediction"]
+                        if (
+                            "handoff_portals" not in project
+                            and "handoff_portals" in saved
+                        ):
+                            current_ids = {c["id"] for c in project["cameras"]}
+                            project["handoff_portals"] = [
+                                p
+                                for p in saved["handoff_portals"]
+                                if p["source_camera"] in current_ids
+                                and p["target_camera"] in current_ids
+                            ]
+                        if "metric_scale" not in project and "metric_scale" in saved:
+                            project["metric_scale"] = saved["metric_scale"]
                         if "motion_model" not in project and "motion_model" in saved:
                             project["motion_model"] = saved["motion_model"]
                         project["processing"]["association_mode"] = saved.get(

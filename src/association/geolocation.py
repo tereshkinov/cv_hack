@@ -100,12 +100,17 @@ class FloorMatcher:
         self.width = _positive_number(room["width_m"], "room.width_m")
         self.height = _positive_number(room["height_m"], "room.height_m")
         self.coordinate_units = project.get("coordinate_units", "meters")
+        from src.metric_scale import scale_info
+
+        self.metric_scale = scale_info(project)
         # Relative plans have no physical speed units. Normalize by plan diagonal.
         self.scale = (
             1.0
             if self.coordinate_units == "meters"
             else max(hypot(self.width, self.height) / 25, 1e-6)
         )
+        if self.metric_scale:
+            self.scale = 1.0 / self.metric_scale["meters_per_unit"]
         processing = project.get("processing", {})
         requested_radius = processing.get("fusion_distance_m", 0.8 * self.scale)
         self.radius = max(
@@ -115,7 +120,7 @@ class FloorMatcher:
                 1.2 * self.scale,
             ),
         )
-        self.speed = 2.0 * self.scale
+        self.speed = (2.5 if project.get("metric_scale") else 2.0) * self.scale
         self.prediction_model = project.get("floor_prediction", "heuristic")
         if self.prediction_model not in ("heuristic", "kalman"):
             raise ValueError("floor_prediction must be heuristic or kalman")
@@ -746,6 +751,7 @@ class FloorMatcher:
             "coordinate_units_are_metric": self.coordinate_units == "meters",
             # Metric labels alone do not prove calibration accuracy.
             "physical_speed_claimed": False,
+            "metric_scale": self.metric_scale,
             "sync_uncertainty_s": self.sync_uncertainty_s,
             "sync_verified": self.sync_verified,
             "cameras": cameras,

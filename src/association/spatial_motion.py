@@ -80,6 +80,12 @@ class OfficeMotionModel:
             )
             scale_source = "explicit_meters_per_unit"
 
+        from src.metric_scale import scale_info
+
+        metric = scale_info(project)
+        if metric:
+            self.meters_per_unit = metric["meters_per_unit"]
+            scale_source = metric["source"]
         self.nodes = self._parse_nodes(config.get("nodes", []))
         self.graph = {node_id: [] for node_id in self.nodes}
         self.edge_distances: dict[tuple[str, str], float] = {}

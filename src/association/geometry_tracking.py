@@ -103,6 +103,15 @@ def _geometry(engine, a, b):
             boundary.reason,
             boundary.support_count,
         )
+    if engine.config.trajectory_handoffs and a.camera_id != b.camera_id:
+        from .handoff import trajectory_evidence
+
+        handoff, handoff_details = trajectory_evidence(engine, a, b, boundary)
+        details["handoff"] = handoff_details
+        if handoff is not None:
+            evidence = handoff
+        elif handoff_details["reason"] == "handoff_pending_trajectory":
+            return None, details | {"reason": "handoff_pending_trajectory"}
     if floor and evidence is None:
         if overlap >= 0:
             # One shared model accounts for time offsets, projection quality and
@@ -148,7 +157,11 @@ def _geometry(engine, a, b):
         and boundary.available
         and (
             evidence is None
-            or (evidence[1] < 0.30 and boundary.reliability > evidence[1])
+            or (
+                evidence[3] != "handoff_trajectory_portal"
+                and evidence[1] < 0.30
+                and boundary.reliability > evidence[1]
+            )
         )
     ):
         evidence = (
@@ -197,6 +210,7 @@ def _geometry(engine, a, b):
     }
     # The residual of interpolation at its own anchors is not an accuracy measure.
     if floor and reason not in {
+        "handoff_trajectory_portal",
         "partial_image_bearing",
         "same_camera_position_only",
         "same_camera_bidirectional",
@@ -235,12 +249,29 @@ def _geometry(engine, a, b):
         else engine.config.similarity_threshold
     )
     decision = decide_geometry(normalized, threshold)
+    score = decision.score
+    handoff = details.get("handoff", {})
+    motion_span = handoff.get("common_span_s", 0)
+    if handoff.get("evidence_window") == "tail_to_head":
+        motion_span = min(handoff.get("left_span_s", 0), handoff.get("right_span_s", 0))
+    if (
+        engine.config.trajectory_handoffs
+        and not decision.hard_reject
+        and score is not None
+        and motion_span >= 0.6
+        and handoff.get("direction_cosine") is not None
+        and handoff["direction_cosine"] > 0.8
+        and discrepancy <= 1.25
+    ):
+        bonus = 0.04 * min(1, motion_span) * (handoff["direction_cosine"] - 0.8) / 0.2
+        score = min(1, score + bonus)
+        details["direction_agreement_bonus"] = bonus
     details.update(
         hard_reject=decision.hard_reject,
         geometry_score=decision.geometry_score,
         policy_reason=decision.reason,
     )
-    return decision.score, details
+    return score, details
 
 
 def associate_geometry(engine, observations, exits):
@@ -290,6 +321,19 @@ def associate_geometry(engine, observations, exits):
                     neighbors[a.fragment_id].append((score, b.fragment_id))
                     neighbors[b.fragment_id].append((score, a.fragment_id))
 
+        joint_decisions, handoff_packets = {}, []
+        if cfg.trajectory_handoffs:
+            from .handoff import joint_handoffs
+
+            threshold = (
+                cfg.tracklet_threshold
+                if cfg.tracklet_threshold is not None
+                else cfg.similarity_threshold
+            )
+            joint_decisions, handoff_packets = joint_handoffs(
+                nodes, cache, threshold, cfg.ambiguity_margin
+            )
+
         def provider(a, b):
             score, details = cache.get(
                 (a.fragment_id, b.fragment_id), (None, {"reason": "no_geometry"})
@@ -297,6 +341,25 @@ def associate_geometry(engine, observations, exits):
             details = dict(details)
             if score is None or details.get("reason") == "spatial_contradiction":
                 return score, details
+            joint = joint_decisions.get((a.fragment_id, b.fragment_id))
+            if joint:
+                details["joint_handoff"] = joint
+                if joint["selected"]:
+                    return min(1.0, score + 0.04), details
+                packet = handoff_packets[joint["packet"]]
+                if any(
+                    e["selected"]
+                    and (e["left"] == a.fragment_id or e["right"] == b.fragment_id)
+                    for e in packet["decisions"]
+                ):
+                    threshold = (
+                        cfg.tracklet_threshold
+                        if cfg.tracklet_threshold is not None
+                        else cfg.similarity_threshold
+                    )
+                    return min(score, threshold - 0.04), details | {
+                        "reason": "joint_competitor_selected"
+                    }
             # Compare competitors whose intervals actually overlap. Sequential visits
             # minutes apart do not make each other's geometry ambiguous.
             competitors = []
@@ -363,6 +426,23 @@ def associate_geometry(engine, observations, exits):
         assignments, tracks, report = rebuild_fragments(
             engine, observations, seeds, [], exits
         )
+        report["handoff"] = {
+            "enabled": cfg.trajectory_handoffs,
+            "lookahead_window_s": 1.5,
+            "labels_retroactive": True,
+            "packets": handoff_packets,
+            "trajectory_edges": sum(
+                "handoff" in details
+                and details["handoff"]
+                .get("reason", "")
+                .startswith("handoff_trajectory")
+                for _, details in cache.values()
+            ),
+            "pending_edges": sum(
+                details.get("reason") == "handoff_pending_trajectory"
+                for _, details in cache.values()
+            ),
+        }
         report["policy"] = cfg.decision_mode
         report["prediction_model"] = (
             engine.floor.prediction_model if engine.floor else None
@@ -374,6 +454,12 @@ def associate_geometry(engine, observations, exits):
         engine.fragment_report = report
         for row in assignments:
             row["reason"] = "geometry_first"
+        if cfg.stitch_short_tracks:
+            from .short_stitch import stitch_short_tracks
+
+            assignments, tracks, report["short_stitch"] = stitch_short_tracks(
+                assignments, tracks, report, cfg
+            )
         if cfg.confirm_tracks:
             from .confirmation import annotate_confirmation
 
