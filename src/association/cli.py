@@ -19,7 +19,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--observations", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--exits", type=Path)
-    parser.add_argument("--project", type=Path, help="Floor calibration project for soft spatial evidence")
+    parser.add_argument(
+        "--project",
+        type=Path,
+        help="Floor calibration project for soft spatial evidence",
+    )
     parser.add_argument("--no-geolocation", action="store_true")
     parser.add_argument("--timeout-s", type=float, default=10.0)
     parser.add_argument("--similarity-threshold", type=float, default=0.75)
@@ -31,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tracklet-threshold", type=float, default=None)
     parser.add_argument("--adjacency-bonus", type=float, default=0.04)
     parser.add_argument("--tracklet-min-samples", type=int, default=3)
+    parser.add_argument("--transition-overlap-tolerance-s", type=float, default=0.75)
     return parser
 
 
@@ -47,11 +52,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         offline_reconcile=not args.no_offline_reconcile,
         tracklet_threshold=args.tracklet_threshold,
         tracklet_min_samples=args.tracklet_min_samples,
+        transition_overlap_tolerance_s=args.transition_overlap_tolerance_s,
     )
     cameras = load_cameras(args.cameras)
     observations = load_observations(args.observations)
     exits = load_exit_events(args.exits) if args.exits else []
-    floor_project = json.loads(args.project.read_text()) if args.project and not args.no_geolocation else None
+    floor_project = (
+        json.loads(args.project.read_text())
+        if args.project and not args.no_geolocation
+        else None
+    )
     engine = AssociationEngine(cameras, config, floor_project=floor_project)
     assignments, tracks = engine.run(observations, exits)
     write_results(args.output_dir, assignments, tracks)
@@ -62,11 +72,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "tracklet_threshold": config.tracklet_threshold
                 if config.tracklet_threshold is not None
                 else config.similarity_threshold,
+                "transition_overlap_tolerance_s": config.transition_overlap_tolerance_s,
                 "merges": engine.reconciliation_log,
                 "geolocation": {
                     "enabled": engine.floor is not None,
-                    "calibrated_cameras": sorted(engine.floor.calibrations) if engine.floor else [],
+                    "calibrated_cameras": sorted(engine.floor.calibrations)
+                    if engine.floor
+                    else [],
                     "statistics": dict(engine.floor.stats) if engine.floor else {},
+                },
+                "motion_model": {
+                    "enabled": engine.route_model is not None,
+                    "scale_source": engine.route_model.scale_source
+                    if engine.route_model
+                    else None,
+                    "meters_per_unit": engine.route_model.meters_per_unit
+                    if engine.route_model
+                    else None,
                 },
             },
             indent=2,

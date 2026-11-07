@@ -72,10 +72,23 @@ def execute(folder):
             (folder / "report.md").write_text(
                 f"# Проекция готовых треков\nИсточник: {source.name}.\nНейросети не запускались. Режим: {spec['kind']}. Треков: {len(result['tracks'])}. Калибровано камер: {sum(c['calibrated'] for c in result['cameras'])}. Единицы: {result['coordinate_units']}.\n"
             )
+            calibrated_count = sum(c["calibrated"] for c in result["cameras"])
+            motion_enabled = bool(project.get("motion_model"))
             update(
                 folder,
                 "done",
-                f"Готово: {len(result['tracks'])} треков; ID пересчитаны по полу"
+                (
+                    f"Готово: {len(result['tracks'])} треков; "
+                    + (
+                        "ID пересчитаны с геометрией пола и моделью маршрута"
+                        if calibrated_count
+                        else (
+                            "ID пересчитаны по внешности, графу камер и модели маршрута"
+                            if motion_enabled
+                            else "ID пересчитаны по внешности и графу камер"
+                        )
+                    )
+                )
                 if spec["kind"] == "reassociate"
                 else "Проекция готова: ID сохранены, путь обновлён",
                 "complete",
@@ -124,6 +137,8 @@ def execute(folder):
                 str(settings["similarity_threshold"]),
                 "--adjacency-bonus",
                 str(settings.get("adjacency_bonus", 0.04)),
+                "--transition-overlap-tolerance-s",
+                str(settings.get("transition_overlap_tolerance_s", 0.75)),
                 "--ambiguity-margin",
                 str(settings.get("ambiguity_margin", 0.03)),
                 "--tracklet-threshold",
@@ -137,7 +152,7 @@ def execute(folder):
 {message}
 
 Время: {time.perf_counter() - started:.2f} с. Камер: {len(cameras)}.
-Лимит на каждую камеру: {settings.get("max_duration_s", 0)} с (0 — всё видео). Локальное ожидание: {settings.get("local_buffer_s", 5)} с. Бонус графа: {settings.get("adjacency_bonus", 0.04)}.
+Лимит на каждую камеру: {settings.get("max_duration_s", 0)} с (0 — всё видео). Локальное ожидание: {settings.get("local_buffer_s", 5)} с. Бонус графа: {settings.get("adjacency_bonus", 0.04)}. Допуск перекрытия перехода: {settings.get("transition_overlap_tolerance_s", 0.75)} с.
 Анализ: YOLO11n + ByteTrack + OSNet, собственное межкамерное сопоставление и офлайн-уточнение.
 Порог первого прохода {settings["similarity_threshold"]}; нескольких кадров {settings["tracklet_threshold"]}; ожидание {settings["timeout_s"]} с.
 Калиброваны {sum(c["calibrated"] for c in result["cameras"])} камер. Отброшено проекций: {result["projection_rejected"]}.

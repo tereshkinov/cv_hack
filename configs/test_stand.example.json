@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "coordinate_units": "relative",
+  "room": {
+    "width_m": 100.0,
+    "height_m": 107.5163398693
+  },
+  "plan_background": {
+    "image_id": "567d62dccaf51f317190",
+    "opacity": 0.9
+  },
+  "walls": [],
+  "motion_model": {
+    "label": "Предварительный граф проходов; масштаб требует контрольного измерения",
+    "provisional": true,
+    "meters_per_unit": 0.2,
+    "nodes": [
+      {"id": "cam1_gate", "point": [36.9, 20.9]},
+      {"id": "cam2_gate", "point": [25.8, 32.3]},
+      {"id": "upper_junction", "point": [51.1, 20.9]},
+      {"id": "central_junction", "point": [52.9, 59.3]},
+      {"id": "lower_junction", "point": [49.9, 89.7]}
+    ],
+    "edges": [
+      {"a": "cam1_gate", "b": "upper_junction", "bidirectional": true},
+      {"a": "cam2_gate", "b": "upper_junction", "bidirectional": true},
+      {"a": "upper_junction", "b": "central_junction", "bidirectional": true},
+      {"a": "central_junction", "b": "lower_junction", "bidirectional": true}
+    ],
+    "camera_gates": {
+      "cam1": {"both": ["cam1_gate"]},
+      "cam2": {"both": ["cam2_gate"]},
+      "cam3": {"both": ["upper_junction"]},
+      "cam4": {"both": ["central_junction"]},
+      "cam5": {"both": ["lower_junction"]}
+    },
+    "walking_speed_m_s": {
+      "min": 0.5,
+      "typical": 1.35,
+      "max": 2.5,
+      "sigma": 0.5
+    },
+    "timing_sigma_s": 1.5,
+    "route_uncertainty_fraction": 0.25,
+    "max_dwell_s": 5,
+    "distance_reliability": 0.45
+  },
+  "cameras": [
+    {
+      "id": "cam1",
+      "name": "Камера 1 — верхний холл",
+      "position": [36.9, 20.9],
+      "height_m": 2.7,
+      "yaw_deg": 90,
+      "fov_deg": 70,
+      "range_m": 20,
+      "time_offset_s": 0,
+      "overlap_with": ["cam2", "cam3"],
+      "transition_to": ["cam4"],
+      "video_id": "a1d5b529bff09da1b084",
+      "frame_index": 0,
+      "video_points": [],
+      "plan_points": [],
+      "calibration": null
+    },
+    {
+      "id": "cam2",
+      "name": "Камера 2 — кабинет 337",
+      "position": [25.8, 32.3],
+      "height_m": 2.7,
+      "yaw_deg": -20,
+      "fov_deg": 70,
+      "range_m": 18,
+      "time_offset_s": 0,
+      "overlap_with": ["cam1", "cam3"],
+      "transition_to": ["cam4"],
+      "video_id": "bf583b776d3ecb888ce2",
+      "frame_index": 0,
+      "video_points": [],
+      "plan_points": [],
+      "calibration": null
+    },
+    {
+      "id": "cam3",
+      "name": "Камера 3 — верхний коридор",
+      "position": [51.1, 20.9],
+      "height_m": 2.7,
+      "yaw_deg": 90,
+      "fov_deg": 70,
+      "range_m": 22,
+      "time_offset_s": 0,
+      "overlap_with": ["cam1", "cam2"],
+      "transition_to": ["cam4"],
+      "video_id": "da505bf139d672275af8",
+      "frame_index": 0,
+      "video_points": [],
+      "plan_points": [],
+      "calibration": null
+    },
+    {
+      "id": "cam4",
+      "name": "Камера 4 — центральный коридор",
+      "position": [52.9, 59.3],
+      "height_m": 2.7,
+      "yaw_deg": 180,
+      "fov_deg": 70,
+      "range_m": 23,
+      "time_offset_s": 0,
+      "overlap_with": [],
+      "transition_to": ["cam1", "cam2", "cam3", "cam5"],
+      "video_id": "d486be1a5d84a9bdaf4e",
+      "frame_index": 0,
+      "video_points": [],
+      "plan_points": [],
+      "calibration": null
+    },
+    {
+      "id": "cam5",
+      "name": "Камера 5 — нижний переход",
+      "position": [49.9, 89.7],
+      "height_m": 2.7,
+      "yaw_deg": -90,
+      "fov_deg": 70,
+      "range_m": 22,
+      "time_offset_s": 0,
+      "overlap_with": [],
+      "transition_to": ["cam4"],
+      "video_id": "4c79ef3da43a709d4111",
+      "frame_index": 0,
+      "video_points": [],
+      "plan_points": [],
+      "calibration": null
+    }
+  ],
+  "processing": {
+    "device": "cpu",
+    "confidence": 0.1,
+    "frame_stride": 1,
+    "timeout_s": 15.0,
+    "max_duration_s": 180.0,
+    "local_buffer_s": 5.0,
+    "adjacency_bonus": 0.04,
+    "transition_overlap_tolerance_s": 0.75,
+    "ambiguity_margin": 0.03,
+    "similarity_threshold": 0.72,
+    "tracklet_threshold": 0.62,
+    "preview_fps": 10,
+    "fusion_distance_m": 2.0,
+    "smoothing_tau_s": 0.25
+  },
+  "note": "Локальный стенд на пяти одновременных офисных камерах. Положения и связи камер предварительные; привязку пола нужно разметить вручную."
+}

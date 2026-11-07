@@ -27,11 +27,21 @@ class AssociationEngine:
         self._validate_camera_links()
         self.config = config or AssociationConfig()
         self.floor = None
+        self.route_model = None
+        self.boundary_geometry = None
         self._floor_history = defaultdict(list)
         if floor_project:
+            from .boundary_geometry import BoundaryGeometryMatcher
             from .geolocation import FloorMatcher
+            from .spatial_motion import OfficeMotionModel
 
             self.floor = FloorMatcher(floor_project, camera_list)
+            self.route_model = OfficeMotionModel.from_project(floor_project)
+            self.boundary_geometry = BoundaryGeometryMatcher(
+                camera_list,
+                floor_matcher=self.floor,
+                route_model=self.route_model,
+            )
         self.graph = CameraGraph(self.cameras)
         self._overlaps = self.graph.overlaps
         self._tracks: dict[str, TrackState] = {}

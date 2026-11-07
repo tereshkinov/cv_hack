@@ -388,7 +388,9 @@ class Handler(BaseHTTPRequestHandler):
             ):
                 project = validate_project(self.json_body()["project"])
                 cameras = camera_manifest(project, self.server.videos(), ROOT)
-                if not any(c.get("calibration") for c in project["cameras"]):
+                if parts[3] == "project" and not any(
+                    c.get("calibration") for c in project["cameras"]
+                ):
                     raise ValueError("Сначала привяжите к полу хотя бы одну камеру")
                 result = self.server.jobs.start(
                     project,
